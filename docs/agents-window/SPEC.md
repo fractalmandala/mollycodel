@@ -387,3 +387,21 @@ These were read at catalog level only; they are inspiration, not specification.
 **Save points.** After every completed message and at the end of every turn, serialized and coalesced; `shutdown()` waits for pending saves. A conversation above 40 MB is not overwritten (the last good copy stays). A tool call with no recorded result (app closed mid-call) is shown as failed, not dropped.
 
 **Verified.** `node dev/test-pi-persistence.mjs` runs the real `PiAgent` against a fake local model server and an in-memory session database, with a real tool call, then simulates a restart with a new agent instance: 14 checks (metadata, history, turn ids, tool steps, and that the model receives the earlier conversation).
+
+## Phase 5: Command Code provider and sub-agents
+
+### Command Code
+
+Command Code is a gateway with one key and 80+ models. Its Provider API (`https://api.commandcode.ai/provider/v1`) lists models publicly at `/models`, with a `supported_endpoints` field per model: Claude models are served over the Anthropic protocol, everything else over OpenAI's. pi-ai's `createProvider` accepts an `api` map keyed by `model.api`, so one provider row serves both. A new provider kind, `command-code`, builds that map; each model carries its protocol (from discovery, otherwise `claude-*` means Anthropic), the Anthropic base URL drops the trailing `/v1`, and gateway-unfriendly request fields (`store`, the developer role) are switched off. Pi's own catalog supplies context limits for Claude ids. The idea follows [pi-commandcode-provider](https://github.com/patlux/pi-commandcode-provider) (MIT), read as a reference; no code was copied. Not done: reasoning-effort levels, account usage/quota, browser login (API key only), price display.
+
+### Sub-agents
+
+The Pi agent gets an `Agent` tool that hands a self-contained task to a fresh agent and returns its written report, following the idea of [pi-subagents](https://github.com/tintinweb/pi-subagents) (MIT; reference only, no code copied). Pi runs the tool calls of one reply in parallel, so several `Agent` calls in one message run together (at most 4 at once; the rest queue).
+
+- **Types** are Markdown files with a small header (`name`, `description`, `tools`, `model`, `disallowed_tools`), read from `<project>/.pi/agents`, `<project>/.agents/agents`, and `~/.mollycodel/agents`, over three built-ins: `general-purpose`, `Explore` (read-only), `Plan` (read-only). Later layers override earlier ones by name; type names match case-insensitively; an unknown type falls back to `general-purpose` with a note.
+- **Safety:** a sub-agent has only its type's tools, cannot start sub-agents, is stopped after 40 replies, and every write or command it attempts goes through the same approval prompt, labelled with the agent's name (`Explore: Read File`). Secret-file blocking applies unchanged.
+- **In the chat:** each sub-agent tool call appears as its own card, with an id prefix so it cannot collide with the main agent's. The `Agent` call itself is one card whose result is the report.
+- **After a restart:** the `Agent` cards and reports come back (they are part of the saved conversation). The sub-agent's own step-by-step cards are not saved.
+- **Not in this version:** background runs with later retrieval, steering a running agent, nested agents, worktree isolation, scripted workflows, scheduling, a live fleet view, sub-agents as their own sessions in the Agents Window list.
+
+Verified by `dev/test-pi-commandcode.mjs` (14 checks) and `dev/test-pi-subagents.mjs` (18 checks) against fake local model servers; neither used a real key or the network. Not yet seen in the built app.

@@ -106,7 +106,7 @@ index 00000000..c532b83c
 +});
 diff --git a/src/vs/workbench/contrib/piProviders/browser/piProvidersEditor.ts b/src/vs/workbench/contrib/piProviders/browser/piProvidersEditor.ts
 new file mode 100644
-index 00000000..a1b4c15f
+index 00000000..5781504a
 --- /dev/null
 +++ b/src/vs/workbench/contrib/piProviders/browser/piProvidersEditor.ts
 @@ -0,0 +1,125 @@
@@ -219,7 +219,7 @@ index 00000000..a1b4c15f
 +				case 'discover': {
 +					const request = message['request'] as { kind?: string; baseUrl?: string; apiKey?: string; providerId?: string } | undefined;
 +					const result = await this._providers.discoverModels({
-+						kind: request?.kind === 'anthropic-compatible' ? 'anthropic-compatible' : 'openai-compatible',
++						kind: request?.kind === 'anthropic-compatible' || request?.kind === 'command-code' ? request.kind : 'openai-compatible',
 +						baseUrl: typeof request?.baseUrl === 'string' ? request.baseUrl : '',
 +						apiKey: typeof request?.apiKey === 'string' ? request.apiKey : undefined,
 +						providerId: typeof request?.providerId === 'string' ? request.providerId : undefined,
@@ -237,10 +237,10 @@ index 00000000..a1b4c15f
 +}
 diff --git a/src/vs/workbench/contrib/piProviders/browser/piProvidersPage.ts b/src/vs/workbench/contrib/piProviders/browser/piProvidersPage.ts
 new file mode 100644
-index 00000000..39a8240d
+index 00000000..2260a309
 --- /dev/null
 +++ b/src/vs/workbench/contrib/piProviders/browser/piProvidersPage.ts
-@@ -0,0 +1,266 @@
+@@ -0,0 +1,268 @@
 +/*---------------------------------------------------------------------------------------------
 + *  Copyright (c) Microsoft Corporation. All rights reserved.
 + *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -450,6 +450,8 @@ index 00000000..39a8240d
 +		var ed = dialog.editing, pr = dialog.preset;
 +		var isBuiltin = ed ? ed.kind === 'builtin' : !!(pr && pr.builtin);
 +		var kind = ed ? ed.kind : (pr && pr.extra ? pr.extra.kind : (isBuiltin ? 'builtin' : 'openai-compatible'));
++		var fixedKind = kind === 'command-code' ? 'command-code' : null;
++		var discoveredApis = {};
 +		var name = h('input', { type: 'text', value: ed ? ed.name : (pr && !pr.custom ? pr.name : ''), placeholder: 'Display name' });
 +		var url = h('input', { type: 'url', value: ed ? (ed.baseUrl || '') : (pr && pr.extra ? pr.extra.baseUrl : ''), placeholder: 'https://api.example.com/v1' });
 +		var protocol = h('select', null, h('option', { value: 'openai-compatible', text: 'OpenAI-compatible' }), h('option', { value: 'anthropic-compatible', text: 'Anthropic-compatible' }));
@@ -461,10 +463,10 @@ index 00000000..39a8240d
 +		var status = h('div', { class: 'status' });
 +		var fetchBtn = h('button', { class: 'btn', text: 'Fetch models', onclick: function () {
 +			status.className = 'status'; status.textContent = 'Asking the service\\u2026'; var id = ++discoverSeq;
-+			post({ type: 'discover', requestId: id, request: { kind: protocol.value, baseUrl: url.value, apiKey: key.value || undefined, providerId: ed ? ed.id : undefined } });
++			post({ type: 'discover', requestId: id, request: { kind: fixedKind || protocol.value, baseUrl: url.value, apiKey: key.value || undefined, providerId: ed ? ed.id : undefined } });
 +			window.__piDiscover = function (r) {
 +				if (r.requestId !== id) { return; }
-+				if (r.ok) { var existing = models.value.split('\\n').map(function (x) { return x.trim(); }).filter(Boolean); models.value = Array.from(new Set(existing.concat(r.models))).join('\\n'); status.className = 'status ok'; status.textContent = 'Found ' + r.models.length + ' models.'; }
++				if (r.ok) { if (r.apis) { Object.keys(r.apis).forEach(function (k) { discoveredApis[k] = r.apis[k]; }); } var existing = models.value.split('\\n').map(function (x) { return x.trim(); }).filter(Boolean); models.value = Array.from(new Set(existing.concat(r.models))).join('\\n'); status.className = 'status ok'; status.textContent = 'Found ' + r.models.length + ' models.'; }
 +				else { status.className = 'status err'; status.textContent = r.error; }
 +			};
 +		} });
@@ -473,7 +475,7 @@ index 00000000..39a8240d
 +		var form = h('div', null,
 +			field('Name', name),
 +			isBuiltin ? null : field('Base URL', url, 'The address that serves the API, usually ending in /v1.'),
-+			(isBuiltin || (pr && pr.extra)) ? null : field('Protocol', protocol),
++			(isBuiltin || fixedKind || (pr && pr.extra)) ? null : field('Protocol', protocol),
 +			field('API key', key, (ed && ed.hasKey) ? 'A key is stored in your keychain.' : 'Stored in your operating system keychain. Never shown again.'),
 +			(ed && ed.hasKey) ? h('label', { class: 'inline' }, removeKey, ' Remove the saved key') : null,
 +			isBuiltin ? h('p', { class: 'hint', text: 'Models for built-in providers come from Pi automatically.' }) : h('div', { class: 'field' }, h('label', { text: 'Models' }), models, h('div', { class: 'inline mt' }, fetchBtn), status));
@@ -486,7 +488,7 @@ index 00000000..39a8240d
 +			if (!isBuiltin && !ids.length) { status.className = 'status err'; status.textContent = 'Add at least one model ID (or use Fetch models).'; return; }
 +			var id = ed ? ed.id : (isBuiltin ? pr.id : 'custom-' + cfgName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Math.random().toString(36).slice(2, 6));
 +			var apiKey = removeKey.checked ? null : (key.value ? key.value : undefined);
-+			post({ type: 'save', apiKey: apiKey, config: { id: id, name: cfgName, kind: isBuiltin ? 'builtin' : protocol.value, enabled: ed ? ed.enabled : true, baseUrl: isBuiltin ? undefined : url.value.trim(), models: isBuiltin ? [] : ids.map(function (m) { var old = ed && ed.models.filter(function (o) { return o.id === m; })[0]; return old || { id: m }; }) } });
++			post({ type: 'save', apiKey: apiKey, config: { id: id, name: cfgName, kind: isBuiltin ? 'builtin' : (fixedKind || protocol.value), enabled: ed ? ed.enabled : true, baseUrl: isBuiltin ? undefined : url.value.trim(), models: isBuiltin ? [] : ids.map(function (m) { var old = ed && ed.models.filter(function (o) { return o.id === m; })[0]; return old || (discoveredApis[m] ? { id: m, api: discoveredApis[m] } : { id: m }); }) } });
 +			dialog = null;
 +		} });
 +		return h('div', { class: 'overlay' }, h('div', { class: 'dialog', role: 'dialog', 'aria-label': ed ? 'Edit provider' : 'Add provider' },
@@ -509,10 +511,10 @@ index 00000000..39a8240d
 +}
 diff --git a/src/vs/workbench/contrib/piProviders/browser/piProvidersService.ts b/src/vs/workbench/contrib/piProviders/browser/piProvidersService.ts
 new file mode 100644
-index 00000000..fdaea72c
+index 00000000..89e61c55
 --- /dev/null
 +++ b/src/vs/workbench/contrib/piProviders/browser/piProvidersService.ts
-@@ -0,0 +1,208 @@
+@@ -0,0 +1,218 @@
 +/*---------------------------------------------------------------------------------------------
 + *  Copyright (c) Microsoft Corporation. All rights reserved.
 + *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -523,7 +525,7 @@ index 00000000..fdaea72c
 +import { Emitter, Event } from '../../../../base/common/event.js';
 +import { Disposable } from '../../../../base/common/lifecycle.js';
 +import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
-+import { PI_PROVIDERS_RESOURCE, parsePiProvidersPayload, type IPiProviderConfig, type IPiProviderPublic, type PiProviderKind } from '../../../../platform/agentHost/common/piProviders.js';
++import { PI_PROVIDERS_RESOURCE, parsePiProvidersPayload, type IPiProviderConfig, type IPiProviderPublic, type PiModelApi, type PiProviderKind } from '../../../../platform/agentHost/common/piProviders.js';
 +import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 +import { ILogService } from '../../../../platform/log/common/log.js';
 +import { asJson, IRequestService, isSuccess } from '../../../../platform/request/common/request.js';
@@ -554,7 +556,8 @@ index 00000000..fdaea72c
 +	readonly providerId?: string;
 +}
 +
-+export type PiDiscoverResult = { readonly ok: true; readonly models: readonly string[] } | { readonly ok: false; readonly error: string };
++/** `apis` is present when the service says which protocol each model is served over. */
++export type PiDiscoverResult = { readonly ok: true; readonly models: readonly string[]; readonly apis?: Readonly<Record<string, PiModelApi>> } | { readonly ok: false; readonly error: string };
 +
 +export interface IPiProvidersService {
 +	readonly _serviceBrand: undefined;
@@ -707,11 +710,20 @@ index 00000000..fdaea72c
 +				}
 +				const body = await asJson<{ data?: { id?: unknown }[]; models?: ({ id?: unknown; name?: unknown } | string)[] }>(context);
 +				const entries = body?.data ?? body?.models ?? [];
++				// Some gateways list `supported_endpoints` per model; the Messages endpoint means the Anthropic protocol.
++				const apis: Record<string, PiModelApi> = {};
++				for (const entry of entries) {
++					const endpoints = typeof entry === 'object' && entry ? (entry as { supported_endpoints?: unknown }).supported_endpoints : undefined;
++					const id = typeof entry === 'object' && entry ? (entry as { id?: unknown }).id : undefined;
++					if (typeof id === 'string' && Array.isArray(endpoints) && endpoints.length) {
++						apis[id] = endpoints.includes('/chat/completions') ? 'openai-completions' : endpoints.includes('/messages') ? 'anthropic-messages' : 'openai-completions';
++					}
++				}
 +				const ids = entries
 +					.map(entry => typeof entry === 'string' ? entry : typeof entry?.id === 'string' ? entry.id : typeof (entry as { name?: unknown })?.name === 'string' ? (entry as { name: string }).name : undefined)
 +					.filter((id): id is string => !!id);
 +				if (ids.length) {
-+					return { ok: true, models: [...new Set(ids)].sort().slice(0, 2000) };
++					return { ok: true, models: [...new Set(ids)].sort().slice(0, 2000), apis: Object.keys(apis).length ? apis : undefined };
 +				}
 +				lastError = 'The service returned an empty model list.';
 +			} catch (error) {

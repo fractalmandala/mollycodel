@@ -1,9 +1,9 @@
 diff --git a/src/vs/platform/agentHost/common/piProviderPresets.ts b/src/vs/platform/agentHost/common/piProviderPresets.ts
 new file mode 100644
-index 00000000..3ddb78c3
+index 00000000..0fb7a8c3
 --- /dev/null
 +++ b/src/vs/platform/agentHost/common/piProviderPresets.ts
-@@ -0,0 +1,84 @@
+@@ -0,0 +1,85 @@
 +/*---------------------------------------------------------------------------------------------
 + *  Copyright (c) Microsoft Corporation. All rights reserved.
 + *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -77,10 +77,11 @@ index 00000000..3ddb78c3
 +	readonly id: string;
 +	readonly name: string;
 +	readonly baseUrl: string;
-+	readonly kind: 'openai-compatible' | 'anthropic-compatible';
++	readonly kind: 'openai-compatible' | 'anthropic-compatible' | 'command-code';
 +}
 +
 +export const PI_ENDPOINT_PRESETS: readonly IPiEndpointPreset[] = [
++	{ id: 'command-code', name: 'Command Code', baseUrl: 'https://api.commandcode.ai/provider/v1', kind: 'command-code' },
 +	{ id: 'zhipu', name: 'Zhipu AI', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', kind: 'openai-compatible' },
 +	{ id: 'zhipu-coding', name: 'Zhipu AI Coding Plan', baseUrl: 'https://open.bigmodel.cn/api/coding/paas/v4', kind: 'openai-compatible' },
 +	{ id: 'siliconflow', name: 'SiliconFlow', baseUrl: 'https://api.siliconflow.cn/v1', kind: 'openai-compatible' },
@@ -90,10 +91,10 @@ index 00000000..3ddb78c3
 +];
 diff --git a/src/vs/platform/agentHost/common/piProviders.ts b/src/vs/platform/agentHost/common/piProviders.ts
 new file mode 100644
-index 00000000..9cf659dd
+index 00000000..1fbe2206
 --- /dev/null
 +++ b/src/vs/platform/agentHost/common/piProviders.ts
-@@ -0,0 +1,146 @@
+@@ -0,0 +1,154 @@
 +/*---------------------------------------------------------------------------------------------
 + *  Copyright (c) Microsoft Corporation. All rights reserved.
 + *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -119,7 +120,12 @@ index 00000000..9cf659dd
 +	/** Any OpenAI-compatible endpoint (chat completions). */
 +	| 'openai-compatible'
 +	/** Any Anthropic-compatible endpoint (messages API). */
-+	| 'anthropic-compatible';
++	| 'anthropic-compatible'
++	/** Command Code's Provider API: one key, models served over either protocol (chosen per model). */
++	| 'command-code';
++
++/** The wire protocol a single model is spoken over. */
++export type PiModelApi = 'openai-completions' | 'anthropic-messages';
 +
 +export interface IPiModelConfig {
 +	/** The model id sent to the provider. */
@@ -128,6 +134,8 @@ index 00000000..9cf659dd
 +	readonly alias?: string;
 +	readonly contextWindow?: number;
 +	readonly maxTokens?: number;
++	/** Protocol for this model. Used by `command-code` rows, where it varies per model. */
++	readonly api?: PiModelApi;
 +}
 +
 +/** Non-secret provider configuration. */
@@ -180,6 +188,7 @@ index 00000000..9cf659dd
 +			alias: typeof entry['alias'] === 'string' && entry['alias'].trim() ? entry['alias'].trim().slice(0, 60) : undefined,
 +			contextWindow: typeof entry['contextWindow'] === 'number' && entry['contextWindow'] > 0 ? Math.floor(entry['contextWindow']) : undefined,
 +			maxTokens: typeof entry['maxTokens'] === 'number' && entry['maxTokens'] > 0 ? Math.floor(entry['maxTokens']) : undefined,
++			api: entry['api'] === 'openai-completions' || entry['api'] === 'anthropic-messages' ? entry['api'] : undefined,
 +		});
 +	}
 +	return result;
@@ -216,7 +225,7 @@ index 00000000..9cf659dd
 +			continue;
 +		}
 +		const kind = entry['kind'];
-+		if (kind !== 'builtin' && kind !== 'openai-compatible' && kind !== 'anthropic-compatible') {
++		if (kind !== 'builtin' && kind !== 'openai-compatible' && kind !== 'anthropic-compatible' && kind !== 'command-code') {
 +			continue;
 +		}
 +		const baseUrl = typeof entry['baseUrl'] === 'string' ? entry['baseUrl'].trim() : undefined;
@@ -1144,10 +1153,10 @@ index 00000000..5249e12a
 +}
 diff --git a/src/vs/platform/agentHost/node/pi/piAgent.ts b/src/vs/platform/agentHost/node/pi/piAgent.ts
 new file mode 100644
-index 00000000..516c0a22
+index 00000000..e173bf7b
 --- /dev/null
 +++ b/src/vs/platform/agentHost/node/pi/piAgent.ts
-@@ -0,0 +1,619 @@
+@@ -0,0 +1,658 @@
 +/*---------------------------------------------------------------------------------------------
 + *  Copyright (c) Microsoft Corporation. All rights reserved.
 + *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -1168,7 +1177,9 @@ index 00000000..516c0a22
 +import { buildPiModels, loadPiDeps, type IPiDeps, type PiModel, type PiModels } from './piProviderRuntime.js';
 +import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 +import { PI_CONVERSATION_VERSION, PI_MAX_PERSISTED_BYTES, parseChatMeta, parseConversation, titleFromPrompt, toTurns, type IPiChatMeta, type IPiConversation, type PiMessage } from './piConversation.js';
++import { homedir } from 'os';
 +import { createPiTools, describePiTool, type IPiToolInfo } from './piTools.js';
++import { createSubagentTool, loadSubagentTypes, SubagentLimiter, type ISubagentRunHost, type SubagentAgent } from './piSubagents.js';
 +
 +type PiAgentInstance = InstanceType<IPiDeps['core']['Agent']>;
 +type PiBeforeToolCall = NonNullable<PiAgentInstance['beforeToolCall']>;
@@ -1490,7 +1501,7 @@ index 00000000..516c0a22
 +			entry.turnId = turnId;
 +			entry.toolInfo.clear();
 +			entry.deniedTools.clear();
-+			agent.state.tools = entry.cwd ? createPiTools(entry.cwd) : [];
++			agent.state.tools = entry.cwd ? [...createPiTools(entry.cwd), createSubagentTool(await this._subagentHost(entry, deps))] : [];
 +			agent.beforeToolCall = (context, signal) => this._beforeToolCall(entry, context, signal);
 +
 +			let lastError: string | undefined;
@@ -1578,11 +1589,13 @@ index 00000000..516c0a22
 +	 * Called by Pi before each tool executes. Tells the host about the call,
 +	 * waits for the user's approval when needed, and blocks denied or unsafe calls.
 +	 */
-+	private readonly _beforeToolCall = async (entry: IPiChat, context: Parameters<PiBeforeToolCall>[0], signal?: AbortSignal): ReturnType<PiBeforeToolCall> => {
++	private readonly _beforeToolCall = async (entry: IPiChat, context: Parameters<PiBeforeToolCall>[0], signal?: AbortSignal, label?: string, idPrefix = ''): ReturnType<PiBeforeToolCall> => {
 +		const chat = entry.chat;
 +		const turnId = entry.turnId ?? generateUuid();
-+		const toolCall = context.toolCall;
-+		const info = describePiTool(entry.cwd ?? '.', toolCall.name, context.args);
++		// A sub-agent's calls are shown in the same chat, named after it and with ids that cannot clash with the main agent's.
++		const toolCall = { ...context.toolCall, id: idPrefix + context.toolCall.id };
++		const described = describePiTool(entry.cwd ?? '.', toolCall.name, context.args);
++		const info = label ? { ...described, displayName: `${label}: ${described.displayName}` } : described;
 +		entry.toolInfo.set(toolCall.id, info);
 +
 +		this._fire(chat, { type: ActionType.ChatToolCallStart, turnId, toolCallId: toolCall.id, toolName: toolCall.name, displayName: info.displayName });
@@ -1622,6 +1635,41 @@ index 00000000..516c0a22
 +		entry.deniedTools.add(toolCall.id);
 +		return { block: true, reason: 'The user did not approve this tool call.' };
 +	};
++
++	private readonly _subagentLimiter = new SubagentLimiter();
++	private _subagentRuns = 0;
++
++	/** What a sub-agent run needs from this agent: models, tools, the approval gate and card completion. */
++	private async _subagentHost(entry: IPiChat, deps: IPiDeps): Promise<ISubagentRunHost> {
++		const cwd = entry.cwd ?? '.';
++		const parentModel = () => this._resolveModel(entry.model);
++		return {
++			cwd,
++			types: await loadSubagentTypes(cwd, homedir()),
++			limiter: this._subagentLimiter,
++			resolveModel: selection => {
++				const wanted = selection?.trim();
++				if (wanted) {
++					const [provider, ...rest] = wanted.split('/');
++					const exact = rest.length ? this._piModels?.getModel(provider, rest.join('/')) : undefined;
++					const parent = parentModel();
++					const sibling = exact ? undefined : parent && this._piModels?.getModel(parent.provider, wanted);
++					if (exact ?? sibling) {
++						return exact ?? sibling;
++					}
++				}
++				return parentModel();
++			},
++			createAgent: options => new deps.core.Agent({
++				initialState: { systemPrompt: options.systemPrompt, model: options.model as never, messages: [], tools: options.tools },
++				streamFn: (...args) => this._piModels!.streamSimple(...args),
++			}) as unknown as SubagentAgent,
++			createTools: () => createPiTools(cwd),
++			gate: (label, idPrefix) => (context: Parameters<PiBeforeToolCall>[0], signal?: AbortSignal) => this._beforeToolCall(entry, context, signal, label, idPrefix),
++			toolEnded: (idPrefix, toolCallId, result, isError) => this._onToolEnd(entry, entry.turnId ?? '', idPrefix + toolCallId, result, isError),
++			nextRunId: () => ++this._subagentRuns,
++		};
++	}
 +
 +	/** Report a finished tool call to the host. */
 +	private _onToolEnd(entry: IPiChat, turnId: string, toolCallId: string, result: unknown, isError: boolean): void {
@@ -1995,10 +2043,10 @@ index 00000000..32bed2b0
 +}
 diff --git a/src/vs/platform/agentHost/node/pi/piProviderRuntime.ts b/src/vs/platform/agentHost/node/pi/piProviderRuntime.ts
 new file mode 100644
-index 00000000..9bb6a5fd
+index 00000000..e47c85a4
 --- /dev/null
 +++ b/src/vs/platform/agentHost/node/pi/piProviderRuntime.ts
-@@ -0,0 +1,165 @@
+@@ -0,0 +1,203 @@
 +/*---------------------------------------------------------------------------------------------
 + *  Copyright (c) Microsoft Corporation. All rights reserved.
 + *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -2006,7 +2054,7 @@ index 00000000..9bb6a5fd
 +
 +import type { Credential, CredentialInfo, CredentialStore } from '@earendil-works/pi-ai';
 +import { PI_PROVIDER_PRESETS } from '../../common/piProviderPresets.js';
-+import type { IPiModelConfig, IPiProviderConfig, IPiProvidersPayload } from '../../common/piProviders.js';
++import type { IPiModelConfig, IPiProviderConfig, IPiProvidersPayload, PiModelApi } from '../../common/piProviders.js';
 +
 +export type PiAi = typeof import('@earendil-works/pi-ai');
 +export type PiCore = typeof import('@earendil-works/pi-agent-core');
@@ -2127,30 +2175,66 @@ index 00000000..9bb6a5fd
 +			// One provider failing to load must not take the others down.
 +		}
 +	}
++	if (enabled.some(candidate => candidate.kind === 'command-code')) {
++		// Command Code serves Claude models under their own ids; Pi's catalog knows their limits and capabilities.
++		await addKnownModels(known, 'anthropic');
++	}
 +	for (const row of enabled.filter(candidate => candidate.kind !== 'builtin')) {
 +		collection.setProvider(buildCustomProvider(deps, row, row.apiKey, known));
 +	}
 +	return collection;
 +}
 +
++async function addKnownModels(known: Map<string, PiModel>, builtinId: string): Promise<void> {
++	try {
++		const provider = await loadBuiltinProvider(builtinId);
++		for (const model of provider?.getModels() ?? []) {
++			if (!known.has(model.id)) {
++				known.set(model.id, model as PiModel);
++			}
++		}
++	} catch {
++		// Metadata is a nicety; models still work with conservative limits.
++	}
++}
++
++/** Command Code serves Claude models over the Anthropic protocol and everything else over OpenAI's. */
++export function commandCodeApiFor(config: IPiModelConfig): PiModelApi {
++	return config.api ?? (config.id.startsWith('claude-') ? 'anthropic-messages' : 'openai-completions');
++}
++
++/** The Anthropic protocol is rooted one level above the OpenAI one (`.../provider/v1` -> `.../provider`). */
++export function commandCodeBaseUrl(baseUrl: string, api: PiModelApi): string {
++	const normalized = baseUrl.replace(/\/+$/, '');
++	return api === 'anthropic-messages' && normalized.endsWith('/v1') ? normalized.slice(0, -3) : normalized;
++}
++
++// Command Code's gateway does not accept every OpenAI/Anthropic extension, so those are switched off.
++const COMMAND_CODE_OPENAI_COMPAT = { supportsStore: false, supportsDeveloperRole: false, maxTokensField: 'max_tokens' };
++const COMMAND_CODE_ANTHROPIC_COMPAT = { supportsEagerToolInputStreaming: false, supportsLongCacheRetention: false, supportsCacheControlOnTools: false, supportsToolReferences: false };
++
 +function buildCustomProvider(deps: IPiDeps, row: IPiProviderConfig, apiKey: string | undefined, known: ReadonlyMap<string, PiModel>) {
++	const isCommandCode = row.kind === 'command-code';
 +	const isAnthropic = row.kind === 'anthropic-compatible';
 +	const api = isAnthropic ? 'anthropic-messages' : 'openai-completions';
 +	const baseUrl = (row.baseUrl ?? '').replace(/\/+$/, '');
 +	const toModel = (config: IPiModelConfig): PiModel => {
 +		const catalog = known.get(config.id);
++		const modelApi = isCommandCode ? commandCodeApiFor(config) : api;
++		const modelBaseUrl = isCommandCode ? commandCodeBaseUrl(baseUrl, modelApi) : baseUrl;
 +		const base = {
 +			id: config.id,
 +			name: config.alias ?? catalog?.name ?? config.id,
-+			api,
++			api: modelApi,
 +			provider: row.id,
-+			baseUrl,
++			baseUrl: modelBaseUrl,
 +			reasoning: catalog?.reasoning ?? false,
 +			input: catalog?.input ?? ['text'],
 +			cost: catalog?.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 +			contextWindow: config.contextWindow ?? catalog?.contextWindow ?? FALLBACK_CONTEXT_WINDOW,
 +			maxTokens: config.maxTokens ?? catalog?.maxTokens ?? FALLBACK_MAX_TOKENS,
 +			headers: row.headers ? { ...row.headers } : undefined,
++			...(isCommandCode ? { compat: modelApi === 'anthropic-messages' ? COMMAND_CODE_ANTHROPIC_COMPAT : COMMAND_CODE_OPENAI_COMPAT } : {}),
 +		};
 +		return base as unknown as PiModel;
 +	};
@@ -2161,15 +2245,368 @@ index 00000000..9bb6a5fd
 +		// A configured key wins; an empty key resolves as a keyless endpoint (local servers).
 +		auth: { apiKey: { name: `${row.name} API key`, resolve: async () => ({ auth: apiKey ? { apiKey } : {} }) } },
 +		models: row.models.map(toModel),
-+		api: isAnthropic ? deps.anthropic.anthropicMessagesApi() : deps.openai.openAICompletionsApi(),
++		api: isCommandCode
++			? { 'openai-completions': deps.openai.openAICompletionsApi(), 'anthropic-messages': deps.anthropic.anthropicMessagesApi() }
++			: isAnthropic ? deps.anthropic.anthropicMessagesApi() : deps.openai.openAICompletionsApi(),
 +	} as never);
++}
+diff --git a/src/vs/platform/agentHost/node/pi/piSubagents.ts b/src/vs/platform/agentHost/node/pi/piSubagents.ts
+new file mode 100644
+index 00000000..09f66952
+--- /dev/null
++++ b/src/vs/platform/agentHost/node/pi/piSubagents.ts
+@@ -0,0 +1,345 @@
++/*---------------------------------------------------------------------------------------------
++ *  Copyright (c) Microsoft Corporation. All rights reserved.
++ *  Licensed under the MIT License. See License.txt in the project root for license information.
++ *--------------------------------------------------------------------------------------------*/
++
++import { promises as fs } from 'fs';
++import type { AgentTool } from '@earendil-works/pi-agent-core';
++import { Type } from 'typebox';
++import { join } from '../../../../base/common/path.js';
++import type { PiToolName } from './piTools.js';
++
++/**
++ * Sub-agents for Pi: the main agent can hand a self-contained task to a fresh agent
++ * with its own instructions and (optionally narrower) tools, and get a written report
++ * back. Several can run at once: Pi runs the tool calls of one reply in parallel.
++ *
++ * Agent types are Markdown files with a small header, so they can be written and
++ * shared like skills:
++ *
++ *     ---
++ *     name: reviewer
++ *     description: Reviews a change for bugs. Use after edits.
++ *     tools: read_file, list_dir
++ *     model: anthropic/claude-sonnet-4-6      (optional; default is the main agent's model)
++ *     ---
++ *     You are a careful code reviewer...
++ *
++ * They are read from `<project>/.pi/agents`, `<project>/.agents/agents` and
++ * `~/.mollycodel/agents`; a project file overrides a personal one, which overrides
++ * a built-in type of the same name. Sub-agents cannot start sub-agents.
++ */
++
++export const SUBAGENT_TOOL_NAME = 'Agent';
++
++/** At most this many sub-agents work at the same time; further ones wait their turn. */
++export const MAX_CONCURRENT_SUBAGENTS = 4;
++/** A sub-agent that has not finished after this many replies is stopped and its progress reported. */
++export const MAX_SUBAGENT_TURNS = 40;
++const MAX_REPORT_CHARS = 30_000;
++
++const ALL_TOOLS: readonly PiToolName[] = ['read_file', 'list_dir', 'write_file', 'edit_file', 'bash'];
++const READ_ONLY_TOOLS: readonly PiToolName[] = ['read_file', 'list_dir'];
++
++export interface IPiSubagentType {
++	readonly name: string;
++	readonly description: string;
++	readonly tools: readonly PiToolName[];
++	readonly systemPrompt: string;
++	/** `provider/id` or a bare model id; the main agent's model when unset. */
++	readonly model?: string;
++	readonly source: 'built-in' | 'user' | 'project';
++}
++
++export const BUILTIN_SUBAGENT_TYPES: readonly IPiSubagentType[] = [
++	{
++		name: 'general-purpose',
++		description: 'General-purpose agent for multi-step tasks that need searching, reading and changing files or running commands.',
++		tools: ALL_TOOLS,
++		systemPrompt: 'Complete the task you are given thoroughly, then report what you found or did.',
++		source: 'built-in',
++	},
++	{
++		name: 'Explore',
++		description: 'Fast, read-only exploration of the codebase: find where something lives, how it works, what calls it. Cannot change anything.',
++		tools: READ_ONLY_TOOLS,
++		systemPrompt: 'You explore the codebase and answer questions about it. You can only read and list files. Be efficient: search broadly, then read what matters. Report findings with file paths and line numbers.',
++		source: 'built-in',
++	},
++	{
++		name: 'Plan',
++		description: 'Read-only planning: study the code and produce a concrete step-by-step implementation plan. Cannot change anything.',
++		tools: READ_ONLY_TOOLS,
++		systemPrompt: 'You design implementation plans. Read the relevant code, then give an ordered plan naming the files to change and why, plus risks and how to verify. Do not write the code.',
++		source: 'built-in',
++	},
++];
++
++const TOOL_ALIASES: Readonly<Record<string, PiToolName>> = {
++	read_file: 'read_file', read: 'read_file', view: 'read_file',
++	list_dir: 'list_dir', ls: 'list_dir', list: 'list_dir', glob: 'list_dir',
++	write_file: 'write_file', write: 'write_file',
++	edit_file: 'edit_file', edit: 'edit_file',
++	bash: 'bash', shell: 'bash',
++};
++
++function parseToolList(value: string): PiToolName[] | undefined {
++	const names = value.replace(/^\[|\]$/g, '').split(',').map(part => part.trim().replace(/^['"]|['"]$/g, '').toLowerCase()).filter(Boolean);
++	if (!names.length) {
++		return undefined;
++	}
++	const tools = new Set<PiToolName>();
++	for (const name of names) {
++		const tool = TOOL_ALIASES[name];
++		if (tool) {
++			tools.add(tool);
++		}
++	}
++	return [...tools];
++}
++
++/** Parse one agent file. Returns `undefined` when it has no usable name or instructions. */
++export function parseSubagentFile(text: string, fallbackName: string, source: 'user' | 'project'): IPiSubagentType | undefined {
++	const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(text);
++	const header = new Map<string, string>();
++	let body = text;
++	if (match) {
++		body = match[2];
++		for (const line of match[1].split(/\r?\n/)) {
++			const colon = line.indexOf(':');
++			if (colon > 0) {
++				header.set(line.slice(0, colon).trim().toLowerCase(), line.slice(colon + 1).trim().replace(/^['"]|['"]$/g, ''));
++			}
++		}
++	}
++	const name = (header.get('name') ?? fallbackName).trim();
++	const systemPrompt = body.trim();
++	if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(name) || !systemPrompt) {
++		return undefined;
++	}
++	let tools: readonly PiToolName[] = ALL_TOOLS;
++	const listed = header.get('tools');
++	if (listed && listed !== '*') {
++		tools = parseToolList(listed) ?? ALL_TOOLS;
++	}
++	const denied = header.get('disallowed_tools') ?? header.get('disallowedtools');
++	if (denied) {
++		const blocked = new Set(parseToolList(denied) ?? []);
++		tools = tools.filter(tool => !blocked.has(tool));
++	}
++	return {
++		name,
++		description: header.get('description') || `Custom agent "${name}".`,
++		tools,
++		systemPrompt,
++		model: header.get('model') || undefined,
++		source,
++	};
++}
++
++async function readAgentDir(dir: string, source: 'user' | 'project'): Promise<IPiSubagentType[]> {
++	let names: string[];
++	try {
++		names = (await fs.readdir(dir)).filter(name => name.toLowerCase().endsWith('.md')).sort();
++	} catch {
++		return [];
++	}
++	const result: IPiSubagentType[] = [];
++	for (const file of names.slice(0, 100)) {
++		try {
++			const stat = await fs.stat(join(dir, file));
++			if (!stat.isFile() || stat.size > 100_000) {
++				continue;
++			}
++			const type = parseSubagentFile(await fs.readFile(join(dir, file), 'utf8'), file.replace(/\.md$/i, ''), source);
++			if (type) {
++				result.push(type);
++			}
++		} catch {
++			// An unreadable agent file is skipped, not fatal.
++		}
++	}
++	return result;
++}
++
++/** Built-in types, then personal ones, then the project's; a later definition replaces an earlier one of the same name. */
++export async function loadSubagentTypes(cwd: string, home: string): Promise<IPiSubagentType[]> {
++	const byName = new Map<string, IPiSubagentType>();
++	const layers = [
++		BUILTIN_SUBAGENT_TYPES,
++		await readAgentDir(join(home, '.mollycodel', 'agents'), 'user'),
++		await readAgentDir(join(cwd, '.agents', 'agents'), 'project'),
++		await readAgentDir(join(cwd, '.pi', 'agents'), 'project'),
++	];
++	for (const layer of layers) {
++		for (const type of layer) {
++			byName.set(type.name.toLowerCase(), type);
++		}
++	}
++	return [...byName.values()];
++}
++
++/** Case-insensitive lookup; `undefined` when no such type exists. */
++export function findSubagentType(types: readonly IPiSubagentType[], name: string | undefined): IPiSubagentType | undefined {
++	const wanted = (name ?? 'general-purpose').trim().toLowerCase();
++	return types.find(type => type.name.toLowerCase() === wanted);
++}
++
++/** Only the tools the type is allowed. */
++export function toolsForType<T extends { readonly name: string }>(tools: readonly T[], type: IPiSubagentType): T[] {
++	const allowed = new Set<string>(type.tools);
++	return tools.filter(tool => allowed.has(tool.name));
++}
++
++/** Limits how many sub-agents run at once; the rest wait in order. */
++export class SubagentLimiter {
++	private _running = 0;
++	private readonly _waiting: (() => void)[] = [];
++
++	constructor(private readonly _max: number = MAX_CONCURRENT_SUBAGENTS) { }
++
++	async run<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
++		if (this._running >= this._max) {
++			await new Promise<void>((resolve, reject) => {
++				const waiter = () => { signal?.removeEventListener('abort', onAbort); resolve(); };
++				const onAbort = () => {
++					const index = this._waiting.indexOf(waiter);
++					if (index >= 0) {
++						this._waiting.splice(index, 1);
++					}
++					reject(new Error('Cancelled before it could start.'));
++				};
++				signal?.addEventListener('abort', onAbort, { once: true });
++				this._waiting.push(waiter);
++			});
++		}
++		this._running++;
++		try {
++			return await fn();
++		} finally {
++			this._running--;
++			this._waiting.shift()?.();
++		}
++	}
++}
++
++/** The parts of the Pi agent a sub-agent run needs. Kept narrow so this file stays testable on its own. */
++export interface ISubagentRunHost {
++	readonly cwd: string;
++	readonly types: readonly IPiSubagentType[];
++	readonly limiter: SubagentLimiter;
++	/** The model for a run: `selection` when given and available, otherwise the main agent's. */
++	resolveModel(selection: string | undefined): unknown | undefined;
++	/** A fresh agent configured with the given instructions, model and tools. */
++	createAgent(options: { readonly systemPrompt: string; readonly model: unknown; readonly tools: AgentTool[] }): SubagentAgent;
++	/** The tools a sub-agent may use, before the type's filter. */
++	createTools(): AgentTool[];
++	/** Approval gate for this sub-agent's tool calls; `label` names it for the user, `idPrefix` keeps call ids unique. */
++	gate(label: string, idPrefix: string): unknown;
++	/** A sub-agent tool call finished (so its card can be completed). */
++	toolEnded(idPrefix: string, toolCallId: string, result: unknown, isError: boolean): void;
++	nextRunId(): number;
++}
++
++/** The slice of a Pi `Agent` used here. */
++export interface SubagentAgent {
++	beforeToolCall: unknown;
++	readonly state: { tools: AgentTool[]; readonly messages: readonly { readonly role: string; readonly content?: unknown; readonly stopReason?: string; readonly errorMessage?: string }[] };
++	subscribe(listener: (event: { readonly type: string; readonly toolCallId?: string; readonly result?: unknown; readonly isError?: boolean; readonly message?: { readonly role: string } }) => void): () => void;
++	prompt(text: string): Promise<void>;
++	abort(): void;
++}
++
++function textOfMessage(content: unknown): string {
++	if (typeof content === 'string') {
++		return content;
++	}
++	return Array.isArray(content)
++		? content.filter((block): block is { type: string; text: string } => !!block && typeof block === 'object' && (block as { type?: unknown }).type === 'text' && typeof (block as { text?: unknown }).text === 'string').map(block => block.text).join('\n')
++		: '';
++}
++
++export interface ISubagentOutcome {
++	readonly report: string;
++	readonly stopped?: 'turn-limit' | 'cancelled';
++}
++
++/** Run one sub-agent to completion and return its written report. Throws when the model fails. */
++export async function runSubagent(host: ISubagentRunHost, type: IPiSubagentType, prompt: string, signal: AbortSignal | undefined): Promise<ISubagentOutcome> {
++	const model = host.resolveModel(type.model);
++	if (!model) {
++		throw new Error(`No model is available for the "${type.name}" agent.`);
++	}
++	const runId = host.nextRunId();
++	const idPrefix = `sub${runId}:`;
++	const agent = host.createAgent({
++		systemPrompt: [
++			'You are a sub-agent working for another agent on one delegated task.',
++			`The working directory is ${host.cwd}. Reply with a complete, self-contained final report: it is the only thing the requester will see.`,
++			type.systemPrompt,
++		].join('\n\n'),
++		model,
++		tools: toolsForType(host.createTools(), type),
++	});
++	agent.beforeToolCall = host.gate(type.name, idPrefix);
++
++	let turns = 0;
++	let stopped: ISubagentOutcome['stopped'];
++	const unsubscribe = agent.subscribe(event => {
++		if (event.type === 'tool_execution_end' && event.toolCallId) {
++			host.toolEnded(idPrefix, event.toolCallId, event.result, event.isError === true);
++		} else if (event.type === 'message_end' && event.message?.role === 'assistant' && ++turns >= MAX_SUBAGENT_TURNS) {
++			stopped = 'turn-limit';
++			agent.abort();
++		}
++	});
++	const onAbort = () => { stopped ??= 'cancelled'; agent.abort(); };
++	signal?.addEventListener('abort', onAbort, { once: true });
++	try {
++		await agent.prompt(prompt);
++	} finally {
++		signal?.removeEventListener('abort', onAbort);
++		unsubscribe();
++	}
++
++	const assistant = [...agent.state.messages].reverse().filter(message => message.role === 'assistant');
++	const last = assistant[0];
++	if (last?.stopReason === 'error' && !stopped) {
++		throw new Error(last.errorMessage ?? 'The model returned an error.');
++	}
++	const text = assistant.map(message => textOfMessage(message.content).trim()).find(Boolean) ?? '';
++	let report = text || '(The agent finished without writing a report.)';
++	if (stopped === 'turn-limit') {
++		report += `\n\n[Stopped after ${MAX_SUBAGENT_TURNS} replies without finishing; this is its progress so far.]`;
++	} else if (stopped === 'cancelled') {
++		report += '\n\n[Cancelled before it finished.]';
++	}
++	return { report: report.length > MAX_REPORT_CHARS ? `${report.slice(0, MAX_REPORT_CHARS)}\n[report truncated]` : report, stopped };
++}
++
++/** The `Agent` tool the main agent calls to delegate. */
++export function createSubagentTool(host: ISubagentRunHost): AgentTool {
++	const catalog = host.types.map(type => `- ${type.name}: ${type.description} (tools: ${type.tools.join(', ')})`).join('\n');
++	return {
++		name: SUBAGENT_TOOL_NAME,
++		label: 'Sub-agent',
++		description: [
++			'Hand a self-contained task to a sub-agent that works on its own and returns a written report.',
++			'Use it to search or read widely without filling this conversation, or to do independent pieces of work at the same time:',
++			'call Agent several times in one reply and they run in parallel. Write the prompt as a complete brief; the sub-agent has not seen this conversation.',
++			`Available types:\n${catalog}`,
++		].join(' '),
++		parameters: Type.Object({
++			description: Type.String({ description: 'A short (3-6 word) label for the task.' }),
++			prompt: Type.String({ description: 'The complete task for the sub-agent.' }),
++			subagent_type: Type.Optional(Type.String({ description: 'Which type of agent to use. Default: general-purpose.' })),
++		}),
++		execute: async (_id, params: { description: string; prompt: string; subagent_type?: string }, signal?: AbortSignal) => {
++			const requested = params.subagent_type;
++			const type = findSubagentType(host.types, requested);
++			const note = requested && !type ? `[Unknown agent type "${requested}"; used general-purpose.]\n\n` : '';
++			const outcome = await host.limiter.run(() => runSubagent(host, type ?? findSubagentType(host.types, 'general-purpose') ?? BUILTIN_SUBAGENT_TYPES[0], params.prompt, signal), signal);
++			return { content: [{ type: 'text' as const, text: note + outcome.report }], details: { agent: type?.name ?? 'general-purpose', stopped: outcome.stopped } };
++		},
++	} as AgentTool;
 +}
 diff --git a/src/vs/platform/agentHost/node/pi/piTools.ts b/src/vs/platform/agentHost/node/pi/piTools.ts
 new file mode 100644
-index 00000000..fb0a719b
+index 00000000..55719c66
 --- /dev/null
 +++ b/src/vs/platform/agentHost/node/pi/piTools.ts
-@@ -0,0 +1,268 @@
+@@ -0,0 +1,274 @@
 +/*---------------------------------------------------------------------------------------------
 + *  Copyright (c) Microsoft Corporation. All rights reserved.
 + *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -2285,6 +2722,12 @@ index 00000000..fb0a719b
 +				needsConfirmation: true,
 +				permissionKind: 'shell',
 +			};
++		}
++		case 'Agent': {
++			// Delegating needs no approval: the sub-agent's own writes and commands are confirmed one by one.
++			const kind = asString(params['subagent_type']) || 'general-purpose';
++			const task = asString(params['description']) || 'a task';
++			return { displayName: 'Sub-agent', invocationMessage: `Delegating to ${kind} agent: ${task}`, pastTenseMessage: `Delegated to ${kind} agent: ${task}`, toolInput: asString(params['prompt']), needsConfirmation: false };
 +		}
 +		default:
 +			return { displayName: name, invocationMessage: `Running ${name}`, pastTenseMessage: `Ran ${name}`, toolInput: JSON.stringify(params), needsConfirmation: true };

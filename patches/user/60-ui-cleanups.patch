@@ -1,0 +1,81 @@
+diff --git a/src/vs/workbench/browser/media/mollycodel.css b/src/vs/workbench/browser/media/mollycodel.css
+new file mode 100644
+index 00000000..3691ccf0
+--- /dev/null
++++ b/src/vs/workbench/browser/media/mollycodel.css
+@@ -0,0 +1,59 @@
++/*---------------------------------------------------------------------------------------------
++ *  mollycodel: look-and-feel overrides, kept in one file so upstream merges stay trivial.
++ *  Licensed under the MIT License. See License.txt in the project root for license information.
++ *--------------------------------------------------------------------------------------------*/
++
++/*
++ * Title bar layout buttons (primary side bar, panel, secondary side bar, Configure Layout).
++ *
++ * Each icon is an SVG in ./layout-icons used as a mask, so it takes the button's colour
++ * (hover, active, disabled) from the theme. Only the alpha of the SVG matters; draw it
++ * in any single colour on a transparent 16x16 canvas. See docs/reskin/ICONS.md.
++ * Scoped to the title bar so the same icon ids keep their stock look in menus.
++ */
++
++.monaco-workbench .part.titlebar :is(
++	.codicon-panel-left, .codicon-panel-left-off,
++	.codicon-panel-right, .codicon-panel-right-off,
++	.codicon-panel-bottom, .codicon-panel-layout-icon, .codicon-panel-layout-icon-off,
++	.codicon-auxiliarybar-left-layout-icon, .codicon-auxiliarybar-left-off-layout-icon,
++	.codicon-auxiliarybar-right-layout-icon, .codicon-auxiliarybar-right-off-layout-icon,
++	.codicon-configure-layout-icon
++)::before {
++	content: '';
++	display: block;
++	width: 16px;
++	height: 16px;
++	background-color: currentColor;
++	-webkit-mask-repeat: no-repeat;
++	-webkit-mask-position: center;
++	-webkit-mask-size: 16px 16px;
++}
++
++.monaco-workbench .part.titlebar :is(.codicon-panel-left, .codicon-auxiliarybar-left-layout-icon)::before {
++	-webkit-mask-image: url('./layout-icons/sidebar-left.svg');
++}
++
++.monaco-workbench .part.titlebar :is(.codicon-panel-left-off, .codicon-auxiliarybar-left-off-layout-icon)::before {
++	-webkit-mask-image: url('./layout-icons/sidebar-left-off.svg');
++}
++
++.monaco-workbench .part.titlebar :is(.codicon-panel-right, .codicon-auxiliarybar-right-layout-icon)::before {
++	-webkit-mask-image: url('./layout-icons/sidebar-right.svg');
++}
++
++.monaco-workbench .part.titlebar :is(.codicon-panel-right-off, .codicon-auxiliarybar-right-off-layout-icon)::before {
++	-webkit-mask-image: url('./layout-icons/sidebar-right-off.svg');
++}
++
++.monaco-workbench .part.titlebar :is(.codicon-panel-bottom, .codicon-panel-layout-icon)::before {
++	-webkit-mask-image: url('./layout-icons/panel.svg');
++}
++
++.monaco-workbench .part.titlebar .codicon-panel-layout-icon-off::before {
++	-webkit-mask-image: url('./layout-icons/panel-off.svg');
++}
++
++.monaco-workbench .part.titlebar .codicon-configure-layout-icon::before {
++	-webkit-mask-image: url('./layout-icons/layout.svg');
++}
+diff --git a/src/vs/workbench/browser/part.ts b/src/vs/workbench/browser/part.ts
+index c8b312db..ae13d700 100644
+--- a/src/vs/workbench/browser/part.ts
++++ b/src/vs/workbench/browser/part.ts
+@@ -7,2 +7,3 @@ import './media/part.css';
+ import './media/floatingPanels.css';
++import './media/mollycodel.css';
+ import { Component } from '../common/component.js';
+diff --git a/src/vs/workbench/contrib/chat/browser/chatSetup/chatSetupContributions.ts b/src/vs/workbench/contrib/chat/browser/chatSetup/chatSetupContributions.ts
+index 8b75ea3c..d393668e 100644
+--- a/src/vs/workbench/contrib/chat/browser/chatSetup/chatSetupContributions.ts
++++ b/src/vs/workbench/contrib/chat/browser/chatSetup/chatSetupContributions.ts
+@@ -418,2 +418,3 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
+ 							ChatContextKeys.Setup.disabledInWorkspace.negate(),
++							ContextKeyExpr.false(), // mollycodel: no Copilot sign-in button in the title bar
+ 							ContextKeyExpr.equals(`config.${ChatConfiguration.TitleBarSignInEnabled}`, true),

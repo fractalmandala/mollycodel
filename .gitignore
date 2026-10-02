@@ -31,3 +31,6 @@ pi-sandbox/
 dev/build.env
 node_modules/
 .claude/
+
+# drop folder for new assets
+incoming-assets/

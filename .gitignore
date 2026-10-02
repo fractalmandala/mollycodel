@@ -1,0 +1,33 @@
+vscode*
+VS*/*
+VSCode*
+VSCodium*
+.DS_Store
+*.env
+assets/
+build/linux/appimage/out
+build/linux/appimage/pkg2appimage.AppDir
+build/linux/appimage/pkg2appimage-*.AppImage
+build/linux/appimage/pkg2appimage.AppImage
+build/linux/appimage/squashfs-root
+build/linux/appimage/VSCodium
+build/windows/msi/releasedir
+build/windows/msi/Files*.wxs
+build/windows/msi/Files*.wixobj
+sourcemaps/
+stores/snapcraft/insider/*.snap
+stores/snapcraft/stable/*.snap
+font-size/node_modules/
+font-size/generate-css.js
+
+# --- local development, not source ---
+# Third-party repos cloned for reading (PI-Desktop is LGPL-3.0; never vendor it here)
+reference/
+# Test app profile, logs and one-off spike scripts
+test-run/
+# Scratch workspace used to try the agents by hand
+pi-sandbox/
+# Written by dev/build.sh on each fetch
+dev/build.env
+node_modules/
+.claude/

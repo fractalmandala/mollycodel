@@ -1,0 +1,2077 @@
+diff --git a/src/vs/platform/agentHost/common/piProviderPresets.ts b/src/vs/platform/agentHost/common/piProviderPresets.ts
+new file mode 100644
+index 00000000..3ddb78c3
+--- /dev/null
++++ b/src/vs/platform/agentHost/common/piProviderPresets.ts
+@@ -0,0 +1,84 @@
++/*---------------------------------------------------------------------------------------------
++ *  Copyright (c) Microsoft Corporation. All rights reserved.
++ *  Licensed under the MIT License. See License.txt in the project root for license information.
++ *--------------------------------------------------------------------------------------------*/
++
++// GENERATED from @earendil-works/pi-ai builtinProviders() (v1.0.0). Regenerate when upgrading pi-ai.
++
++export interface IPiProviderPreset {
++	/** pi-ai provider id. */
++	readonly id: string;
++	/** Display name. */
++	readonly name: string;
++	/** Whether an API key can be used. */
++	readonly apiKey: boolean;
++	/** Whether a subscription / account login is available. */
++	readonly oauth: boolean;
++	/** Label for the login option, when pi-ai provides one. */
++	readonly loginLabel?: string;
++}
++
++export const PI_PROVIDER_PRESETS: readonly IPiProviderPreset[] = [
++	{ id: "amazon-bedrock", name: "Amazon Bedrock", apiKey: true, oauth: false },
++	{ id: "ant-ling", name: "Ant Ling", apiKey: true, oauth: false },
++	{ id: "anthropic", name: "Anthropic", apiKey: true, oauth: true },
++	{ id: "azure-openai-responses", name: "Azure OpenAI", apiKey: true, oauth: false },
++	{ id: "baseten", name: "Baseten", apiKey: true, oauth: false },
++	{ id: "cerebras", name: "Cerebras", apiKey: true, oauth: false },
++	{ id: "cloudflare-ai-gateway", name: "Cloudflare AI Gateway", apiKey: true, oauth: false },
++	{ id: "cloudflare-workers-ai", name: "Cloudflare Workers AI", apiKey: true, oauth: false },
++	{ id: "deepseek", name: "DeepSeek", apiKey: true, oauth: false },
++	{ id: "fireworks", name: "Fireworks", apiKey: true, oauth: false },
++	{ id: "github-copilot", name: "GitHub Copilot", apiKey: true, oauth: true },
++	{ id: "google", name: "Google", apiKey: true, oauth: false },
++	{ id: "google-vertex", name: "Google Vertex AI", apiKey: true, oauth: false },
++	{ id: "groq", name: "Groq", apiKey: true, oauth: false },
++	{ id: "huggingface", name: "Hugging Face", apiKey: true, oauth: false },
++	{ id: "kimi-coding", name: "Kimi For Coding", apiKey: true, oauth: true, loginLabel: "Sign in with Kimi Code" },
++	{ id: "meta", name: "Meta", apiKey: true, oauth: true, loginLabel: "Sign in with Meta" },
++	{ id: "minimax", name: "MiniMax", apiKey: true, oauth: false },
++	{ id: "minimax-cn", name: "MiniMax CN", apiKey: true, oauth: false },
++	{ id: "mistral", name: "Mistral", apiKey: true, oauth: false },
++	{ id: "moonshotai", name: "Moonshot AI", apiKey: true, oauth: false },
++	{ id: "moonshotai-cn", name: "Moonshot AI CN", apiKey: true, oauth: false },
++	{ id: "nvidia", name: "NVIDIA", apiKey: true, oauth: false },
++	{ id: "openai", name: "OpenAI", apiKey: true, oauth: true, loginLabel: "Sign in with ChatGPT" },
++	{ id: "openai-codex", name: "OpenAI Codex (legacy)", apiKey: false, oauth: true },
++	{ id: "opencode-go", name: "OpenCode Go", apiKey: true, oauth: false },
++	{ id: "opencode", name: "OpenCode Zen", apiKey: true, oauth: false },
++	{ id: "openrouter", name: "OpenRouter", apiKey: true, oauth: true, loginLabel: "Sign in with OpenRouter" },
++	{ id: "qwen-token-plan", name: "Qwen Token Plan", apiKey: true, oauth: false },
++	{ id: "qwen-token-plan-cn", name: "Qwen Token Plan CN", apiKey: true, oauth: false },
++	{ id: "qwen-token-plan-individual", name: "Qwen Token Plan Individual", apiKey: true, oauth: false },
++	{ id: "radius", name: "Radius", apiKey: true, oauth: true },
++	{ id: "together", name: "Together", apiKey: true, oauth: false },
++	{ id: "typesafe", name: "TypeSafe", apiKey: true, oauth: false },
++	{ id: "vercel-ai-gateway", name: "Vercel AI Gateway", apiKey: true, oauth: false },
++	{ id: "xai", name: "xAI", apiKey: true, oauth: true, loginLabel: "Sign in with SuperGrok or X Premium" },
++	{ id: "xiaomi", name: "Xiaomi", apiKey: true, oauth: false },
++	{ id: "xiaomi-token-plan-ams", name: "Xiaomi Token Plan AMS", apiKey: true, oauth: false },
++	{ id: "xiaomi-token-plan-cn", name: "Xiaomi Token Plan CN", apiKey: true, oauth: false },
++	{ id: "xiaomi-token-plan-sgp", name: "Xiaomi Token Plan SGP", apiKey: true, oauth: false },
++	{ id: "zai", name: "Z.AI", apiKey: true, oauth: false },
++	{ id: "zai-coding-cn", name: "Z.AI Coding CN", apiKey: true, oauth: false },
++];
++
++/**
++ * Named OpenAI-compatible endpoints for vendors pi-ai does not ship as built-ins.
++ * These create a custom endpoint row pre-filled with the vendor's public base URL.
++ */
++export interface IPiEndpointPreset {
++	readonly id: string;
++	readonly name: string;
++	readonly baseUrl: string;
++	readonly kind: 'openai-compatible' | 'anthropic-compatible';
++}
++
++export const PI_ENDPOINT_PRESETS: readonly IPiEndpointPreset[] = [
++	{ id: 'zhipu', name: 'Zhipu AI', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', kind: 'openai-compatible' },
++	{ id: 'zhipu-coding', name: 'Zhipu AI Coding Plan', baseUrl: 'https://open.bigmodel.cn/api/coding/paas/v4', kind: 'openai-compatible' },
++	{ id: 'siliconflow', name: 'SiliconFlow', baseUrl: 'https://api.siliconflow.cn/v1', kind: 'openai-compatible' },
++	{ id: 'volcengine-ark', name: 'Volcengine Ark', baseUrl: 'https://ark.cn-beijing.volces.com/api/v3', kind: 'openai-compatible' },
++	{ id: 'stepfun-plan', name: 'StepFun Plan', baseUrl: 'https://api.stepfun.com/step_plan/v1', kind: 'openai-compatible' },
++	{ id: 'qwen-dashscope', name: 'Qwen (DashScope)', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', kind: 'openai-compatible' },
++];
+diff --git a/src/vs/platform/agentHost/common/piProviders.ts b/src/vs/platform/agentHost/common/piProviders.ts
+new file mode 100644
+index 00000000..9cf659dd
+--- /dev/null
++++ b/src/vs/platform/agentHost/common/piProviders.ts
+@@ -0,0 +1,146 @@
++/*---------------------------------------------------------------------------------------------
++ *  Copyright (c) Microsoft Corporation. All rights reserved.
++ *  Licensed under the MIT License. See License.txt in the project root for license information.
++ *--------------------------------------------------------------------------------------------*/
++
++/**
++ * Provider configuration shared by the Providers editor (renderer) and the Pi
++ * agent (agent host process).
++ *
++ * Secrets never touch disk in plain text: the renderer keeps API keys in the OS
++ * keychain (secret storage) and pushes the full payload, keys included, to the
++ * host in memory over the authentication handshake whenever it changes or the
++ * host (re)starts. The host never persists it. The editor UI never receives a
++ * stored key back, only a "has key" flag.
++ */
++
++/** Resource name carried by the in-memory credential push to the Pi agent. */
++export const PI_PROVIDERS_RESOURCE = 'pi:providers';
++
++export type PiProviderKind =
++	/** A provider built into pi-ai; `id` is the pi-ai provider id. */
++	| 'builtin'
++	/** Any OpenAI-compatible endpoint (chat completions). */
++	| 'openai-compatible'
++	/** Any Anthropic-compatible endpoint (messages API). */
++	| 'anthropic-compatible';
++
++export interface IPiModelConfig {
++	/** The model id sent to the provider. */
++	readonly id: string;
++	/** Optional display name. */
++	readonly alias?: string;
++	readonly contextWindow?: number;
++	readonly maxTokens?: number;
++}
++
++/** Non-secret provider configuration. */
++export interface IPiProviderConfig {
++	/** Unique row id. For `builtin` rows this equals the pi-ai provider id. */
++	readonly id: string;
++	readonly name: string;
++	readonly kind: PiProviderKind;
++	readonly enabled: boolean;
++	/** Base URL; required for compatible endpoints, ignored for built-ins. */
++	readonly baseUrl?: string;
++	/** Extra request headers (non-secret only). */
++	readonly headers?: Readonly<Record<string, string>>;
++	/** Model ids to offer. Required for compatible endpoints; optional for built-ins. */
++	readonly models: readonly IPiModelConfig[];
++}
++
++/** What the renderer pushes to the host: configuration plus in-memory keys. */
++export interface IPiProvidersPayload {
++	readonly providers: readonly (IPiProviderConfig & { readonly apiKey?: string })[];
++	/** Default model as `rowId/modelId`. */
++	readonly defaultModel?: string;
++}
++
++/** What the editor may see: configuration plus a flag, never the key. */
++export interface IPiProviderPublic extends IPiProviderConfig {
++	readonly hasKey: boolean;
++}
++
++const MAX_PROVIDERS = 200;
++const MAX_MODELS_PER_PROVIDER = 2000;
++
++function isRecord(value: unknown): value is Record<string, unknown> {
++	return typeof value === 'object' && value !== null && !Array.isArray(value);
++}
++
++function sanitizeModels(raw: unknown): IPiModelConfig[] {
++	if (!Array.isArray(raw)) {
++		return [];
++	}
++	const seen = new Set<string>();
++	const result: IPiModelConfig[] = [];
++	for (const entry of raw.slice(0, MAX_MODELS_PER_PROVIDER)) {
++		if (!isRecord(entry) || typeof entry['id'] !== 'string' || !entry['id'].trim() || seen.has(entry['id'])) {
++			continue;
++		}
++		seen.add(entry['id']);
++		result.push({
++			id: entry['id'].trim(),
++			alias: typeof entry['alias'] === 'string' && entry['alias'].trim() ? entry['alias'].trim().slice(0, 60) : undefined,
++			contextWindow: typeof entry['contextWindow'] === 'number' && entry['contextWindow'] > 0 ? Math.floor(entry['contextWindow']) : undefined,
++			maxTokens: typeof entry['maxTokens'] === 'number' && entry['maxTokens'] > 0 ? Math.floor(entry['maxTokens']) : undefined,
++		});
++	}
++	return result;
++}
++
++function sanitizeHeaders(raw: unknown): Record<string, string> | undefined {
++	if (!isRecord(raw)) {
++		return undefined;
++	}
++	const headers: Record<string, string> = {};
++	for (const [name, value] of Object.entries(raw).slice(0, 32)) {
++		if (typeof value === 'string' && /^[A-Za-z0-9-]+$/.test(name)) {
++			headers[name] = value;
++		}
++	}
++	return Object.keys(headers).length ? headers : undefined;
++}
++
++/** Validate untrusted JSON into a payload; invalid rows are dropped, never thrown on. */
++export function parsePiProvidersPayload(token: string): IPiProvidersPayload {
++	let raw: unknown;
++	try {
++		raw = JSON.parse(token);
++	} catch {
++		return { providers: [] };
++	}
++	if (!isRecord(raw) || !Array.isArray(raw['providers'])) {
++		return { providers: [] };
++	}
++	const ids = new Set<string>();
++	const providers: (IPiProviderConfig & { apiKey?: string })[] = [];
++	for (const entry of raw['providers'].slice(0, MAX_PROVIDERS)) {
++		if (!isRecord(entry) || typeof entry['id'] !== 'string' || !entry['id'].trim() || ids.has(entry['id'])) {
++			continue;
++		}
++		const kind = entry['kind'];
++		if (kind !== 'builtin' && kind !== 'openai-compatible' && kind !== 'anthropic-compatible') {
++			continue;
++		}
++		const baseUrl = typeof entry['baseUrl'] === 'string' ? entry['baseUrl'].trim() : undefined;
++		if (kind !== 'builtin' && !baseUrl) {
++			continue;
++		}
++		ids.add(entry['id']);
++		providers.push({
++			id: entry['id'].trim(),
++			name: typeof entry['name'] === 'string' && entry['name'].trim() ? entry['name'].trim() : entry['id'].trim(),
++			kind,
++			enabled: entry['enabled'] !== false,
++			baseUrl: kind === 'builtin' ? undefined : baseUrl,
++			headers: sanitizeHeaders(entry['headers']),
++			models: sanitizeModels(entry['models']),
++			apiKey: typeof entry['apiKey'] === 'string' && entry['apiKey'] ? entry['apiKey'] : undefined,
++		});
++	}
++	return {
++		providers,
++		defaultModel: typeof raw['defaultModel'] === 'string' && raw['defaultModel'] ? raw['defaultModel'] : undefined,
++	};
++}
+diff --git a/src/vs/platform/agentHost/node/agentHostMain.ts b/src/vs/platform/agentHost/node/agentHostMain.ts
+index f76abab5..8f2d9c0b 100644
+--- a/src/vs/platform/agentHost/node/agentHostMain.ts
++++ b/src/vs/platform/agentHost/node/agentHostMain.ts
+@@ -46,2 +46,4 @@ import { createAgentHostRuntime, type IAgentHostRuntime } from './agentHostBoots
+ import { BANG_COMMAND_PREFIX } from './agentHostBangCommand.js';
++import { PiAgent } from './pi/piAgent.js';
++import { OpenCodeAgent } from './opencode/opencodeAgent.js';
+ import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
+@@ -141,2 +143,4 @@ async function startAgentHost(): Promise<void> {
+ 		errorTelemetry.value = new ErrorTelemetry(runtimeServices.telemetryService);
++		agentService.registerProvider(disposables.add(instantiationService.createInstance(PiAgent)));
++		agentService.registerProvider(disposables.add(instantiationService.createInstance(OpenCodeAgent)));
+ 	} catch (err) {
+diff --git a/src/vs/platform/agentHost/node/opencode/opencodeAgent.ts b/src/vs/platform/agentHost/node/opencode/opencodeAgent.ts
+new file mode 100644
+index 00000000..d0daf60c
+--- /dev/null
++++ b/src/vs/platform/agentHost/node/opencode/opencodeAgent.ts
+@@ -0,0 +1,641 @@
++/*---------------------------------------------------------------------------------------------
++ *  Copyright (c) Microsoft Corporation. All rights reserved.
++ *  Licensed under the MIT License. See License.txt in the project root for license information.
++ *--------------------------------------------------------------------------------------------*/
++
++import { timeout } from '../../../../base/common/async.js';
++import { Emitter, Event } from '../../../../base/common/event.js';
++import { Disposable } from '../../../../base/common/lifecycle.js';
++import { observableValue } from '../../../../base/common/observable.js';
++import { URI } from '../../../../base/common/uri.js';
++import { generateUuid } from '../../../../base/common/uuid.js';
++import { ILogService } from '../../../log/common/log.js';
++import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
++import type { AgentSelection, MessageAttachment, ModelSelection, ProtectedResourceMetadata } from '../../common/state/protocol/state.js';
++import { ActionType } from '../../common/state/sessionActions.js';
++import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type Customization, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
++import type { AgentSignal, IActiveClient, IAgent, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentModelInfo, IAgentResolveChatConfigParams } from '../../common/agent.js';
++import { OpenCodeHttp, type OcJson } from './opencodeHttp.js';
++import { OpenCodeServer } from './opencodeServer.js';
++import { homedir } from 'os';
++
++/** Provider id for the OpenCode harness. */
++export const OPENCODE_AGENT_PROVIDER_ID = 'opencode';
++
++const SETUP_MODEL_ID = 'opencode-setup-required';
++const EVENT_RECONNECT_MS = 1000;
++
++interface IOcTool {
++	started: boolean;
++	ready: boolean;
++	finished: boolean;
++}
++
++interface IOcTurn {
++	readonly id: string;
++	readonly startedAt: number;
++	aborted: boolean;
++	/** Streamed text/reasoning parts: how many characters have been sent to the host. */
++	readonly parts: Map<string, { readonly kind: 'text' | 'reasoning'; emitted: number }>;
++	readonly tools: Map<string, IOcTool>;
++}
++
++interface IOcChat {
++	readonly chat: URI;
++	readonly startTime: number;
++	modifiedTime: number;
++	sessionId: string | undefined;
++	directory: string | undefined;
++	/** `providerID/modelID`, or undefined for OpenCode's own default. */
++	model: string | undefined;
++	agent: string | undefined;
++	turn: IOcTurn | undefined;
++}
++
++/** What is persisted per chat so the OpenCode session can be re-attached after a restart. */
++interface IOcProviderData {
++	readonly sessionId: string;
++	readonly directory: string;
++	readonly model?: string;
++	readonly agent?: string;
++}
++
++/**
++ * OpenCode as an agent.
++ *
++ * Runs the user's own OpenCode (their providers, keys, agents, skills, MCP servers
++ * and `AGENTS.md`) behind a private local server and maps its events onto the Agent
++ * Host protocol. This class holds no credentials: OpenCode reads its own configuration.
++ */
++export class OpenCodeAgent extends Disposable implements IAgent {
++
++	readonly id = OPENCODE_AGENT_PROVIDER_ID;
++
++	private readonly _onDidChatProgress = this._register(new Emitter<AgentSignal>());
++	readonly onDidChatProgress = this._onDidChatProgress.event;
++	readonly onDidMaterializeChat = Event.None;
++	private readonly _onDidChangeChatData = this._register(new Emitter<IAgentChatDataChange>());
++	readonly onDidChangeChatData = this._onDidChangeChatData.event;
++	readonly onDidSpawnChat = Event.None;
++	readonly onDidDiscoverChats: Event<readonly IAgentDiscoveredChat[]> = Event.None;
++
++	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, [setupModel('Starting OpenCode...')]);
++	readonly models = this._models;
++
++	private readonly _server: OpenCodeServer;
++	private _http: Promise<OpenCodeHttp> | undefined;
++	private readonly _eventAbort = new AbortController();
++
++	private readonly _chats = new Map<string, IOcChat>();
++	private readonly _bySession = new Map<string, IOcChat>();
++	/** messageID -> role, so streamed parts of the user's own message are not echoed back. */
++	private readonly _roles = new Map<string, string>();
++	private readonly _usageSent = new Set<string>();
++	/** Tool call id -> the permission request waiting for the user. */
++	private readonly _permissions = new Map<string, { readonly sessionId: string; readonly directory: string; readonly requestId: string }>();
++
++	constructor(
++		@ILogService private readonly _logService: ILogService,
++	) {
++		super();
++		this._server = this._register(new OpenCodeServer(_logService));
++		this._register({ dispose: () => this._eventAbort.abort() });
++		void this.refreshModels();
++	}
++
++	getDescriptor(): IAgentDescriptor {
++		return {
++			provider: OPENCODE_AGENT_PROVIDER_ID,
++			displayName: 'OpenCode',
++			description: 'OpenCode, with your own providers, agents and tools',
++			capabilities: {},
++		};
++	}
++
++	// ---- Connection ----------------------------------------------------------
++
++	private _connect(): Promise<OpenCodeHttp> {
++		this._http ??= (async () => {
++			const connection = await this._server.start();
++			const http = new OpenCodeHttp(connection);
++			void this._runEvents(http);
++			return http;
++		})().catch(error => {
++			this._http = undefined;
++			throw error;
++		});
++		return this._http;
++	}
++
++	private async _runEvents(http: OpenCodeHttp): Promise<void> {
++		while (!this._eventAbort.signal.aborted) {
++			try {
++				await http.streamEvents(event => this._onEvent(event.payload), this._eventAbort.signal);
++			} catch (error) {
++				if (this._eventAbort.signal.aborted) {
++					return;
++				}
++				this._logService.warn(`[OpenCode] event stream dropped: ${error instanceof Error ? error.message : String(error)}`);
++			}
++			await timeout(EVENT_RECONNECT_MS);
++		}
++	}
++
++	/** Publish OpenCode's configured models. */
++	async refreshModels(): Promise<void> {
++		try {
++			const http = await this._connect();
++			const result = await http.get<{ providers?: OcJson[] }>('/config/providers');
++			const infos: IAgentModelInfo[] = [];
++			for (const provider of result.providers ?? []) {
++				for (const model of Object.values<OcJson>(provider['models'] ?? {})) {
++					infos.push({
++						provider: OPENCODE_AGENT_PROVIDER_ID,
++						id: `${provider['id']}/${model['id']}`,
++						name: `${model['name'] ?? model['id']} (${provider['name'] ?? provider['id']})`,
++						maxContextWindow: model['limit']?.['context'] || undefined,
++						maxOutputTokens: model['limit']?.['output'] || undefined,
++						supportsVision: !!(model['modalities']?.['input']?.includes?.('image') ?? model['attachment']),
++					});
++				}
++			}
++			this._logService.info(`[OpenCode] publishing ${infos.length} models`);
++			this._models.set(infos.length ? infos : [setupModel('OpenCode has no providers configured. Add one in OpenCode.')], undefined);
++		} catch (error) {
++			this._logService.warn(`[OpenCode] unavailable: ${error instanceof Error ? error.message : String(error)}`);
++			this._models.set([setupModel(error instanceof Error ? error.message : String(error))], undefined);
++		}
++	}
++
++	// ---- Chats ---------------------------------------------------------------
++
++	private _entry(chat: URI): IOcChat {
++		const key = chat.toString();
++		let entry = this._chats.get(key);
++		if (!entry) {
++			const now = Date.now();
++			entry = { chat, startTime: now, modifiedTime: now, sessionId: undefined, directory: undefined, model: undefined, agent: undefined, turn: undefined };
++			this._chats.set(key, entry);
++		}
++		return entry;
++	}
++
++	private _fire(chat: URI, action: Extract<AgentSignal, { kind: 'action' }>['action']): void {
++		this._onDidChatProgress.fire({ kind: 'action', resource: chat, action });
++	}
++
++	private _persist(entry: IOcChat): void {
++		if (entry.sessionId && entry.directory) {
++			const data: IOcProviderData = { sessionId: entry.sessionId, directory: entry.directory, model: entry.model, agent: entry.agent };
++			this._onDidChangeChatData.fire({ chat: entry.chat, providerData: JSON.stringify(data) });
++		}
++	}
++
++	readonly chats: IAgentChats = {
++		createChat: async (chat: URI, _context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
++			const entry = this._entry(chat);
++			entry.model = options?.model?.id;
++			entry.directory = options?.workingDirectories?.[0]?.fsPath;
++			return { resolvedWorkingDirectory: options?.workingDirectories?.[0] };
++		},
++		disposeChat: async (chat: URI): Promise<void> => {
++			const entry = this._chats.get(chat.toString());
++			if (entry?.sessionId) {
++				this._bySession.delete(entry.sessionId);
++			}
++			this._chats.delete(chat.toString());
++		},
++		releaseChat: async (): Promise<void> => { },
++		sendMessage: async (chat: URI, prompt: string, workingDirectories: readonly URI[] | URI | undefined, _attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> => {
++			const cwd = Array.isArray(workingDirectories) ? workingDirectories[0] : (workingDirectories as URI | undefined);
++			// Asynchronous: progress arrives through the event stream.
++			void this._runTurn(this._entry(chat), prompt, turnId ?? generateUuid(), cwd?.fsPath);
++		},
++		abort: async (chat: URI): Promise<void> => {
++			const entry = this._chats.get(chat.toString());
++			if (entry?.turn && entry.sessionId && entry.directory) {
++				entry.turn.aborted = true;
++				const http = await this._connect();
++				await http.post(`/session/${entry.sessionId}/abort`, {}, entry.directory).catch(error => this._logService.warn(`[OpenCode] abort failed: ${error instanceof Error ? error.message : String(error)}`));
++			}
++		},
++		getModel: (chat: URI): ModelSelection | undefined => {
++			const model = this._chats.get(chat.toString())?.model;
++			return model ? { id: model } : undefined;
++		},
++		changeModel: async (chat: URI, model: ModelSelection): Promise<void> => {
++			const entry = this._entry(chat);
++			entry.model = model.id === SETUP_MODEL_ID ? undefined : model.id;
++			this._persist(entry);
++		},
++		changeAgent: async (chat: URI, agent: AgentSelection | undefined): Promise<void> => {
++			const entry = this._entry(chat);
++			entry.agent = agent ? String(agent.uri).split('/').pop() || undefined : undefined;
++			this._persist(entry);
++		},
++		getMessages: async (chat: URI): Promise<readonly Turn[]> => {
++			const entry = this._chats.get(chat.toString());
++			if (!entry?.sessionId || !entry.directory) {
++				return [];
++			}
++			try {
++				const http = await this._connect();
++				return toTurns(await http.get<OcJson[]>(`/session/${entry.sessionId}/message`, entry.directory));
++			} catch (error) {
++				this._logService.warn(`[OpenCode] could not read history: ${error instanceof Error ? error.message : String(error)}`);
++				return [];
++			}
++		},
++	};
++
++	private async _runTurn(entry: IOcChat, prompt: string, turnId: string, cwd: string | undefined): Promise<void> {
++		const startedAt = Date.now();
++		const turn: IOcTurn = { id: turnId, startedAt, aborted: false, parts: new Map(), tools: new Map() };
++		const fail = (errorType: string, message: string) => {
++			if (entry.turn === turn) {
++				entry.turn = undefined;
++			}
++			this._fire(entry.chat, { type: ActionType.ChatError, turnId, duration: Date.now() - startedAt, error: { errorType, message } });
++		};
++		try {
++			const http = await this._connect();
++			entry.directory = cwd ?? entry.directory ?? homedir();
++			entry.modifiedTime = startedAt;
++			if (!entry.sessionId) {
++				const session = await http.post<OcJson>('/session', {}, entry.directory);
++				entry.sessionId = session['id'] as string;
++				this._bySession.set(entry.sessionId, entry);
++				this._persist(entry);
++			}
++			entry.turn = turn;
++			const body: OcJson = { parts: [{ type: 'text', text: prompt }] };
++			if (entry.model) {
++				const [providerID, ...rest] = entry.model.split('/');
++				body['model'] = { providerID, modelID: rest.join('/') };
++			}
++			if (entry.agent) {
++				body['agent'] = entry.agent;
++			}
++			// The request returns when the run finishes; events carry the progress.
++			await http.post(`/session/${entry.sessionId}/message`, body, entry.directory);
++			// Fallback if the idle event was missed (stream reconnecting): finish the turn here.
++			await timeout(400);
++			this._completeTurn(entry, turn);
++		} catch (error) {
++			if (!turn.aborted && entry.turn === turn) {
++				fail('opencode.error', error instanceof Error ? error.message : String(error));
++			} else if (!entry.turn) {
++				fail('opencode.error', error instanceof Error ? error.message : String(error));
++			}
++		}
++	}
++
++	private _completeTurn(entry: IOcChat, turn: IOcTurn): void {
++		if (entry.turn !== turn) {
++			return;
++		}
++		entry.turn = undefined;
++		if (!turn.aborted) {
++			this._fire(entry.chat, { type: ActionType.ChatTurnComplete, turnId: turn.id, duration: Date.now() - turn.startedAt });
++		}
++	}
++
++	// ---- Events --------------------------------------------------------------
++
++	private _onEvent(event: OcJson): void {
++		const type = event['type'] as string | undefined;
++		const props = (event['properties'] ?? {}) as OcJson;
++		switch (type) {
++			case 'message.updated': {
++				const info = props['info'] as OcJson | undefined;
++				if (!info) {
++					return;
++				}
++				this._roles.set(info['id'], info['role']);
++				const entry = this._bySession.get(info['sessionID']);
++				if (entry?.turn && info['role'] === 'assistant' && info['tokens']?.['output'] > 0 && !this._usageSent.has(info['id'])) {
++					this._usageSent.add(info['id']);
++					this._fire(entry.chat, {
++						type: ActionType.ChatUsage,
++						turnId: entry.turn.id,
++						usage: { inputTokens: info['tokens']['input'], outputTokens: info['tokens']['output'], cacheReadTokens: info['tokens']['cache']?.['read'], model: `${info['providerID']}/${info['modelID']}` },
++					});
++				}
++				return;
++			}
++			case 'message.part.updated': {
++				const part = props['part'] as OcJson | undefined;
++				const entry = part && this._bySession.get(part['sessionID']);
++				if (!part || !entry?.turn || this._roles.get(part['messageID']) !== 'assistant') {
++					return;
++				}
++				this._onPart(entry, entry.turn, part);
++				return;
++			}
++			case 'message.part.delta': {
++				const entry = this._bySession.get(props['sessionID']);
++				const state = entry?.turn?.parts.get(props['partID']);
++				if (!entry?.turn || !state || props['field'] !== 'text' || !props['delta']) {
++					return;
++				}
++				state.emitted += (props['delta'] as string).length;
++				this._fireDelta(entry, entry.turn, props['partID'], state.kind, props['delta']);
++				return;
++			}
++			case 'permission.asked':
++			case 'permission.updated': {
++				const entry = this._bySession.get(props['sessionID']);
++				if (entry?.turn) {
++					this._onPermission(entry, entry.turn, props);
++				}
++				return;
++			}
++			case 'question.asked': {
++				void this._rejectQuestion(props);
++				return;
++			}
++			case 'session.idle': {
++				const entry = this._bySession.get(props['sessionID']);
++				if (entry?.turn) {
++					this._completeTurn(entry, entry.turn);
++				}
++				return;
++			}
++			case 'session.error': {
++				const entry = this._bySession.get(props['sessionID']);
++				const turn = entry?.turn;
++				if (!entry || !turn) {
++					return;
++				}
++				entry.turn = undefined;
++				if (!turn.aborted) {
++					const error = props['error'] as OcJson | undefined;
++					this._fire(entry.chat, { type: ActionType.ChatError, turnId: turn.id, duration: Date.now() - turn.startedAt, error: { errorType: `opencode.${error?.['name'] ?? 'error'}`, message: String(error?.['data']?.['message'] ?? error?.['name'] ?? 'OpenCode reported an error.') } });
++				}
++				return;
++			}
++		}
++	}
++
++	private _onPart(entry: IOcChat, turn: IOcTurn, part: OcJson): void {
++		switch (part['type']) {
++			case 'text':
++			case 'reasoning': {
++				if (part['synthetic'] || part['ignored']) {
++					return;
++				}
++				const kind = part['type'] as 'text' | 'reasoning';
++				const text = (part['text'] as string | undefined) ?? '';
++				const state = turn.parts.get(part['id']);
++				if (!state) {
++					turn.parts.set(part['id'], { kind, emitted: text.length });
++					this._fire(entry.chat, { type: ActionType.ChatResponsePart, turnId: turn.id, part: { kind: kind === 'text' ? ResponsePartKind.Markdown : ResponsePartKind.Reasoning, id: part['id'], content: text } });
++				} else if (text.length > state.emitted) {
++					const delta = text.slice(state.emitted);
++					state.emitted = text.length;
++					this._fireDelta(entry, turn, part['id'], kind, delta);
++				}
++				return;
++			}
++			case 'tool':
++				this._onToolPart(entry, turn, part);
++				return;
++		}
++	}
++
++	private _fireDelta(entry: IOcChat, turn: IOcTurn, partId: string, kind: 'text' | 'reasoning', content: string): void {
++		this._fire(entry.chat, kind === 'text'
++			? { type: ActionType.ChatDelta, turnId: turn.id, partId, content }
++			: { type: ActionType.ChatReasoning, turnId: turn.id, partId, content });
++	}
++
++	private _tool(turn: IOcTurn, callId: string): IOcTool {
++		let tool = turn.tools.get(callId);
++		if (!tool) {
++			tool = { started: false, ready: false, finished: false };
++			turn.tools.set(callId, tool);
++		}
++		return tool;
++	}
++
++	private _startTool(entry: IOcChat, turn: IOcTurn, callId: string, name: string): IOcTool {
++		const tool = this._tool(turn, callId);
++		if (!tool.started) {
++			tool.started = true;
++			this._fire(entry.chat, { type: ActionType.ChatToolCallStart, turnId: turn.id, toolCallId: callId, toolName: name, displayName: prettify(name) });
++		}
++		return tool;
++	}
++
++	private _onToolPart(entry: IOcChat, turn: IOcTurn, part: OcJson): void {
++		const callId = part['callID'] as string;
++		const state = (part['state'] ?? {}) as OcJson;
++		const name = String(part['tool']);
++		const tool = this._startTool(entry, turn, callId, name);
++		const status = state['status'];
++		const title = (state['title'] as string | undefined) || prettify(name);
++		if (!tool.ready && (status === 'running' || status === 'completed' || status === 'error')) {
++			tool.ready = true;
++			this._fire(entry.chat, { type: ActionType.ChatToolCallReady, turnId: turn.id, toolCallId: callId, invocationMessage: title, toolInput: safeJson(state['input']), confirmed: ToolCallConfirmationReason.NotNeeded });
++		}
++		if (tool.finished || (status !== 'completed' && status !== 'error')) {
++			return;
++		}
++		tool.finished = true;
++		const output = status === 'completed' ? String(state['output'] ?? '') : '';
++		const result: ToolCallResult = {
++			success: status === 'completed',
++			pastTenseMessage: title,
++			content: output ? [{ type: ToolResultContentType.Text, text: output.slice(0, 20_000) }] : undefined,
++			error: status === 'error' ? { message: String(state['error'] ?? 'The tool failed.') } : undefined,
++		};
++		this._fire(entry.chat, { type: ActionType.ChatToolCallComplete, turnId: turn.id, toolCallId: callId, result });
++	}
++
++	private _onPermission(entry: IOcChat, turn: IOcTurn, props: OcJson): void {
++		const requestId = props['id'] as string;
++		const kind = String(props['permission'] ?? props['type'] ?? 'tool');
++		const callId = (props['tool']?.['callID'] ?? props['callID'] ?? `permission-${requestId}`) as string;
++		const patterns = ([] as string[]).concat(props['patterns'] ?? props['pattern'] ?? []);
++		const tool = this._startTool(entry, turn, callId, kind);
++		tool.ready = true; // the pending confirmation moves the tool call forward
++		this._permissions.set(callId, { sessionId: entry.sessionId!, directory: entry.directory!, requestId });
++		const title = String(props['title'] ?? prettify(kind));
++		this._onDidChatProgress.fire({
++			kind: 'pending_confirmation',
++			chat: entry.chat,
++			state: {
++				status: ToolCallStatus.PendingConfirmation,
++				toolCallId: callId,
++				toolName: kind,
++				displayName: prettify(kind),
++				invocationMessage: title,
++				toolInput: patterns.join('\n') || undefined,
++				confirmationTitle: title,
++			},
++			permissionKind: permissionKindFor(kind),
++			permissionPath: patterns[0],
++		});
++	}
++
++	private async _rejectQuestion(props: OcJson): Promise<void> {
++		// Interactive questions are not supported in this window yet; decline so the run continues.
++		try {
++			const http = await this._connect();
++			await http.post(`/api/session/${props['sessionID']}/question/${props['id']}/reject`, {});
++		} catch (error) {
++			this._logService.warn(`[OpenCode] could not decline a question: ${error instanceof Error ? error.message : String(error)}`);
++		}
++	}
++
++	respondToPermissionRequest(requestId: string, approved: boolean): void {
++		const pending = this._permissions.get(requestId);
++		if (!pending) {
++			return;
++		}
++		this._permissions.delete(requestId);
++		void (async () => {
++			const http = await this._connect();
++			try {
++				await http.post(`/api/session/${pending.sessionId}/permission/${pending.requestId}/reply`, { reply: approved ? 'once' : 'reject' }, pending.directory);
++			} catch {
++				// Older servers answer on the classic endpoint.
++				await http.post(`/session/${pending.sessionId}/permissions/${pending.requestId}`, { response: approved ? 'once' : 'reject' }, pending.directory);
++			}
++		})().catch(error => this._logService.warn(`[OpenCode] could not answer a permission request: ${error instanceof Error ? error.message : String(error)}`));
++	}
++
++	// ---- Restore and metadata ------------------------------------------------
++
++	async materializeChat(chat: URI, _context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
++		const entry = this._entry(chat);
++		if (!providerData) {
++			return;
++		}
++		try {
++			const data = JSON.parse(providerData) as IOcProviderData;
++			entry.sessionId = data.sessionId;
++			entry.directory = data.directory;
++			entry.model = data.model;
++			entry.agent = data.agent;
++			this._bySession.set(data.sessionId, entry);
++		} catch {
++			this._logService.warn('[OpenCode] ignoring unreadable chat data');
++		}
++	}
++
++	async getChatMetadata(chat: URI): Promise<IAgentChatMetadata | undefined> {
++		const entry = this._chats.get(chat.toString());
++		return entry && { chat, startTime: entry.startTime, modifiedTime: entry.modifiedTime, workingDirectories: entry.directory ? [URI.file(entry.directory)] : undefined };
++	}
++
++	async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined> {
++		return [];
++	}
++
++	// ---- Clients and interaction --------------------------------------------
++
++	getOrCreateActiveClient(_chat: URI, _context: URI | IAgentChatContext, client: { readonly clientId: string; readonly displayName?: string }, _hostCustomizations?: readonly Customization[]): IActiveClient {
++		return { clientId: client.clientId, displayName: client.displayName, tools: [], customizations: [] };
++	}
++
++	removeActiveClient(): void { }
++
++	onClientToolCallComplete(_chat: URI, _toolCallId: string, _result: ToolCallResult): void { }
++
++	respondToUserInputRequest(): void { }
++
++	// ---- Configuration -------------------------------------------------------
++
++	async resolveChatConfig(params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult> {
++		return { schema: { type: 'object', properties: {} }, values: params.config ?? {} };
++	}
++
++	getInheritedChatConfig(): undefined {
++		return undefined;
++	}
++
++	async chatConfigCompletions(_params: IAgentChatConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
++		return { items: [] };
++	}
++
++	async getChatCustomizations(): Promise<readonly Customization[]> {
++		return [];
++	}
++
++	// ---- Authentication ------------------------------------------------------
++
++	getProtectedResources(): ProtectedResourceMetadata[] {
++		return [];
++	}
++
++	async authenticate(_resource: string, _token: string): Promise<boolean> {
++		return true;
++	}
++
++	// ---- Lifecycle -----------------------------------------------------------
++
++	async shutdown(): Promise<void> {
++		this._eventAbort.abort();
++	}
++}
++
++function setupModel(reason: string): IAgentModelInfo {
++	return { provider: OPENCODE_AGENT_PROVIDER_ID, id: SETUP_MODEL_ID, name: reason, supportsVision: false };
++}
++
++function prettify(name: string): string {
++	const spaced = name.replace(/[_-]+/g, ' ').trim();
++	return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : 'Tool';
++}
++
++function safeJson(value: unknown): string | undefined {
++	try {
++		return value === undefined ? undefined : JSON.stringify(value);
++	} catch {
++		return undefined;
++	}
++}
++
++/** OpenCode permission names mapped onto the host's approval categories. */
++function permissionKindFor(kind: string): 'shell' | 'write' | 'read' | 'url' | 'mcp' | 'custom-tool' {
++	switch (kind) {
++		case 'bash': return 'shell';
++		case 'edit': case 'write': case 'patch': case 'multiedit': return 'write';
++		case 'read': case 'list': case 'glob': case 'grep': case 'external_directory': return 'read';
++		case 'webfetch': case 'websearch': return 'url';
++		default: return kind.includes('_') || kind.includes('mcp') ? 'mcp' : 'custom-tool';
++	}
++}
++
++/** Rebuild host turns from OpenCode's stored messages (text and reasoning; tool calls are omitted). */
++function toTurns(items: readonly OcJson[]): Turn[] {
++	const turns: Turn[] = [];
++	let current: Turn | undefined;
++	for (const item of items) {
++		const info = (item['info'] ?? {}) as OcJson;
++		const parts = (item['parts'] ?? []) as OcJson[];
++		if (info['role'] === 'user') {
++			const text = parts.filter(part => part['type'] === 'text' && !part['synthetic']).map(part => part['text']).join('\n');
++			current = { id: info['id'], startedAt: new Date(info['time']?.['created'] ?? Date.now()).toISOString(), message: { text, origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined, state: TurnState.Complete };
++			turns.push(current);
++		} else if (current && info['role'] === 'assistant') {
++			for (const part of parts) {
++				if ((part['type'] === 'text' || part['type'] === 'reasoning') && part['text']) {
++					current.responseParts.push({ kind: part['type'] === 'text' ? ResponsePartKind.Markdown : ResponsePartKind.Reasoning, id: part['id'], content: part['text'] });
++				}
++			}
++			if (info['tokens']) {
++				current.usage = { inputTokens: info['tokens']['input'], outputTokens: info['tokens']['output'], model: `${info['providerID']}/${info['modelID']}` };
++			}
++			if (info['error']) {
++				current.state = TurnState.Error;
++				current.error = { errorType: `opencode.${info['error']['name'] ?? 'error'}`, message: String(info['error']['data']?.['message'] ?? 'OpenCode reported an error.') };
++			}
++			if (info['time']?.['created'] && info['time']?.['completed']) {
++				current.duration = info['time']['completed'] - info['time']['created'];
++			}
++		}
++	}
++	return turns;
++}
+diff --git a/src/vs/platform/agentHost/node/opencode/opencodeHttp.ts b/src/vs/platform/agentHost/node/opencode/opencodeHttp.ts
+new file mode 100644
+index 00000000..7d5fc19b
+--- /dev/null
++++ b/src/vs/platform/agentHost/node/opencode/opencodeHttp.ts
+@@ -0,0 +1,97 @@
++/*---------------------------------------------------------------------------------------------
++ *  Copyright (c) Microsoft Corporation. All rights reserved.
++ *  Licensed under the MIT License. See License.txt in the project root for license information.
++ *--------------------------------------------------------------------------------------------*/
++
++import type { IOpenCodeConnection } from './opencodeServer.js';
++
++/** A loosely-typed JSON value; OpenCode payloads are validated where they are read. */
++export type OcJson = { [key: string]: any };
++
++/** One event from the global stream: which project it belongs to, and the event itself. */
++export interface IOpenCodeGlobalEvent {
++	readonly directory?: string;
++	readonly payload: OcJson;
++}
++
++/**
++ * Minimal client for the OpenCode server: JSON requests and the server-sent
++ * event stream. Deliberately not the OpenCode SDK: the server speaks newer
++ * events than the SDK's types describe, and the endpoints used here are plain REST.
++ */
++export class OpenCodeHttp {
++
++	constructor(private readonly _connection: IOpenCodeConnection) { }
++
++	private _url(path: string, directory?: string): string {
++		const url = new URL(path, this._connection.url);
++		if (directory) {
++			url.searchParams.set('directory', directory);
++		}
++		return url.toString();
++	}
++
++	private _headers(json = false): Record<string, string> {
++		return { Authorization: this._connection.authorization, Accept: 'application/json', ...(json ? { 'Content-Type': 'application/json' } : {}) };
++	}
++
++	async get<T = OcJson>(path: string, directory?: string, signal?: AbortSignal): Promise<T> {
++		const response = await fetch(this._url(path, directory), { headers: this._headers(), signal });
++		return this._read<T>(response, `GET ${path}`);
++	}
++
++	async post<T = OcJson>(path: string, body: unknown, directory?: string, signal?: AbortSignal): Promise<T> {
++		const response = await fetch(this._url(path, directory), { method: 'POST', headers: this._headers(true), body: JSON.stringify(body ?? {}), signal });
++		return this._read<T>(response, `POST ${path}`);
++	}
++
++	private async _read<T>(response: Response, label: string): Promise<T> {
++		const text = await response.text();
++		if (!response.ok) {
++			let message = text;
++			try {
++				const parsed = JSON.parse(text) as OcJson;
++				message = parsed['data']?.['message'] ?? parsed['message'] ?? parsed['error'] ?? text;
++			} catch { /* keep the raw text */ }
++			throw new Error(`${label} failed (${response.status}): ${String(message).slice(0, 300)}`);
++		}
++		return (text ? JSON.parse(text) : undefined) as T;
++	}
++
++	/**
++	 * Read the global event stream until `signal` aborts or the connection drops
++	 * (the caller reconnects). Server-sent events are blocks separated by a blank
++	 * line, each with one or more `data:` lines holding JSON.
++	 */
++	async streamEvents(onEvent: (event: IOpenCodeGlobalEvent) => void, signal: AbortSignal): Promise<void> {
++		const response = await fetch(this._url('/global/event'), { headers: { ...this._headers(), Accept: 'text/event-stream' }, signal });
++		if (!response.ok || !response.body) {
++			throw new Error(`GET /global/event failed (${response.status})`);
++		}
++		const reader = response.body.getReader();
++		const decoder = new TextDecoder();
++		let buffer = '';
++		for (; ;) {
++			const { done, value } = await reader.read();
++			if (done) {
++				return;
++			}
++			buffer += decoder.decode(value, { stream: true });
++			let boundary: number;
++			while ((boundary = buffer.search(/\r?\n\r?\n/)) >= 0) {
++				const block = buffer.slice(0, boundary);
++				buffer = buffer.slice(boundary).replace(/^\r?\n\r?\n/, '');
++				const data = block.split(/\r?\n/).filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
++				if (!data) {
++					continue;
++				}
++				try {
++					const parsed = JSON.parse(data) as OcJson;
++					onEvent(parsed['payload'] ? { directory: parsed['directory'], payload: parsed['payload'] } : { payload: parsed });
++				} catch {
++					// Ignore a malformed block rather than dropping the whole stream.
++				}
++			}
++		}
++	}
++}
+diff --git a/src/vs/platform/agentHost/node/opencode/opencodeServer.ts b/src/vs/platform/agentHost/node/opencode/opencodeServer.ts
+new file mode 100644
+index 00000000..5249e12a
+--- /dev/null
++++ b/src/vs/platform/agentHost/node/opencode/opencodeServer.ts
+@@ -0,0 +1,132 @@
++/*---------------------------------------------------------------------------------------------
++ *  Copyright (c) Microsoft Corporation. All rights reserved.
++ *  Licensed under the MIT License. See License.txt in the project root for license information.
++ *--------------------------------------------------------------------------------------------*/
++
++import { spawn, type ChildProcess } from 'child_process';
++import { existsSync } from 'fs';
++import { homedir } from 'os';
++import { Disposable } from '../../../../base/common/lifecycle.js';
++import { join } from '../../../../base/common/path.js';
++import { generateUuid } from '../../../../base/common/uuid.js';
++import { ILogService } from '../../../log/common/log.js';
++
++const START_TIMEOUT_MS = 30_000;
++const LISTENING = /listening on (https?:\/\/[^\s]+)/;
++
++/**
++ * Runs OpenCode under a tiny supervisor so it cannot outlive the host.
++ *
++ * A normal-exit handler is not enough: when the app terminates its agent host the
++ * handler never runs, and the server would be left running forever (one leaked
++ * server per app launch). The supervisor polls for the host's pid and takes the
++ * server down with it, whether the host exited, was terminated, or was killed.
++ * Arguments: the OpenCode binary, the host pid, then OpenCode's own arguments.
++ */
++const SUPERVISOR = `BIN="$1"; PARENT="$2"; shift 2
++"$BIN" "$@" &
++CHILD=$!
++trap 'kill $CHILD 2>/dev/null' EXIT
++trap 'exit 0' TERM INT HUP
++while kill -0 "$PARENT" 2>/dev/null && kill -0 "$CHILD" 2>/dev/null; do sleep 1; done`;
++
++export interface IOpenCodeConnection {
++	readonly url: string;
++	/** Value for the `Authorization` header. */
++	readonly authorization: string;
++}
++
++/** Where to look for the OpenCode binary, most specific first. */
++function candidateBinaries(): string[] {
++	const home = homedir();
++	return [
++		process.env['OPENCODE_BIN'],
++		join(home, '.opencode', 'bin', 'opencode'),
++		'/opt/homebrew/bin/opencode',
++		'/usr/local/bin/opencode',
++	].filter((candidate): candidate is string => !!candidate);
++}
++
++export function findOpenCodeBinary(): string | undefined {
++	return candidateBinaries().find(candidate => existsSync(candidate));
++}
++
++/**
++ * Runs one private `opencode serve` for the lifetime of the agent host.
++ *
++ * It listens on 127.0.0.1 only, on a port the OS picks, protected by a random
++ * password that exists only in this process. OpenCode reads the user's own
++ * configuration (providers, keys, agents, MCP servers), so nothing about it is
++ * copied or stored here.
++ */
++export class OpenCodeServer extends Disposable {
++
++	private _starting: Promise<IOpenCodeConnection> | undefined;
++	private _child: ChildProcess | undefined;
++	private readonly _killOnExit = () => this._child?.kill();
++
++	constructor(@ILogService private readonly _logService: ILogService) {
++		super();
++		process.once('exit', this._killOnExit);
++	}
++
++	/** Start the server if needed. Rejects with a readable reason when OpenCode is not installed. */
++	start(): Promise<IOpenCodeConnection> {
++		this._starting ??= this._spawn().catch(error => {
++			this._starting = undefined;
++			throw error;
++		});
++		return this._starting;
++	}
++
++	private _spawn(): Promise<IOpenCodeConnection> {
++		const binary = findOpenCodeBinary();
++		if (!binary) {
++			return Promise.reject(new Error('OpenCode was not found. Install it from https://opencode.ai, or set OPENCODE_BIN to its path.'));
++		}
++		const password = generateUuid();
++		const args = ['serve', '--hostname', '127.0.0.1', '--port', '0'];
++		const options = { cwd: homedir(), env: { ...process.env, OPENCODE_SERVER_PASSWORD: password }, stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'] };
++		const child = this._child = process.platform === 'win32'
++			? spawn(binary, args, options)
++			: spawn('/bin/sh', ['-c', SUPERVISOR, 'sh', binary, String(process.pid), ...args], options);
++		this._logService.info(`[OpenCode] starting ${binary}`);
++
++		return new Promise<IOpenCodeConnection>((resolve, reject) => {
++			let output = '';
++			const timer = setTimeout(() => {
++				child.kill();
++				reject(new Error('OpenCode did not start in time.'));
++			}, START_TIMEOUT_MS);
++			const onData = (chunk: Buffer) => {
++				output = (output + chunk.toString('utf8')).slice(-4000);
++				const match = LISTENING.exec(output);
++				if (match) {
++					clearTimeout(timer);
++					this._logService.info('[OpenCode] server ready');
++					resolve({ url: match[1], authorization: `Basic ${Buffer.from(`opencode:${password}`).toString('base64')}` });
++				}
++			};
++			child.stdout?.on('data', onData);
++			child.stderr?.on('data', onData);
++			child.once('error', error => {
++				clearTimeout(timer);
++				reject(error);
++			});
++			child.once('exit', code => {
++				clearTimeout(timer);
++				this._logService.info(`[OpenCode] server exited (${code})`);
++				this._child = undefined;
++				this._starting = undefined;
++				reject(new Error(`OpenCode exited (code ${code}) before it was ready.`));
++			});
++		});
++	}
++
++	override dispose(): void {
++		process.removeListener('exit', this._killOnExit);
++		this._child?.kill();
++		this._child = undefined;
++		super.dispose();
++	}
++}
+diff --git a/src/vs/platform/agentHost/node/pi/piAgent.ts b/src/vs/platform/agentHost/node/pi/piAgent.ts
+new file mode 100644
+index 00000000..8b037b10
+--- /dev/null
++++ b/src/vs/platform/agentHost/node/pi/piAgent.ts
+@@ -0,0 +1,482 @@
++/*---------------------------------------------------------------------------------------------
++ *  Copyright (c) Microsoft Corporation. All rights reserved.
++ *  Licensed under the MIT License. See License.txt in the project root for license information.
++ *--------------------------------------------------------------------------------------------*/
++
++import { Emitter, Event } from '../../../../base/common/event.js';
++import { Disposable } from '../../../../base/common/lifecycle.js';
++import { ILogService } from '../../../log/common/log.js';
++import { observableValue } from '../../../../base/common/observable.js';
++import { URI } from '../../../../base/common/uri.js';
++import { generateUuid } from '../../../../base/common/uuid.js';
++import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
++import { PI_PROVIDERS_RESOURCE, parsePiProvidersPayload, type IPiProvidersPayload } from '../../common/piProviders.js';
++import type { AgentSelection, MessageAttachment, ModelSelection, ProtectedResourceMetadata } from '../../common/state/protocol/state.js';
++import { ActionType } from '../../common/state/sessionActions.js';
++import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type Customization, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
++import type { AuthenticateParams, IActiveClient, IAgent, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatMetadata, IAgentChats, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentModelInfo, IAgentResolveChatConfigParams, AgentSignal } from '../../common/agent.js';
++import { buildPiModels, loadPiDeps, type IPiDeps, type PiModel, type PiModels } from './piProviderRuntime.js';
++import { createPiTools, describePiTool, type IPiToolInfo } from './piTools.js';
++
++type PiAgentInstance = InstanceType<IPiDeps['core']['Agent']>;
++type PiBeforeToolCall = NonNullable<PiAgentInstance['beforeToolCall']>;
++
++/** Provider id for the Pi agent harness. */
++export const PI_AGENT_PROVIDER_ID = 'pi';
++
++/** Model id published when no provider credentials are configured, so the picker explains how to fix it. */
++const SETUP_MODEL_ID = 'pi-setup-required';
++
++
++/** Gemini catalog entries that are not general chat models. */
++const NON_CHAT_MODEL = /image|live|deep-research|computer-use/;
++
++interface IPiChat {
++	readonly chat: URI;
++	readonly startTime: number;
++	modifiedTime: number;
++	/** Selected model as `provider/id`, or `undefined` for the default. */
++	model: string | undefined;
++	agent: PiAgentInstance | undefined;
++	/** Set when the host aborted the in-flight turn; the host already dispatched the cancellation. */
++	aborted: boolean;
++	/** Working directory (fsPath) for tools, from the most recent send. */
++	cwd: string | undefined;
++	/** Turn currently running, for tool-call signals. */
++	turnId: string | undefined;
++	/** Tool calls in flight, by id: what we told the host about them. */
++	readonly toolInfo: Map<string, IPiToolInfo>;
++	/** Tool calls the user denied; the host already finalized them. */
++	readonly deniedTools: Set<string>;
++}
++
++/**
++ * Pi agent provider (phase 3 slice): runs Pi's agent loop (`pi-agent-core`) over
++ * `pi-ai`'s multi-provider models, streaming into the Agent Host. Text and
++ * reasoning only; tools, persistence and key setup UI come later.
++ *
++ * Requires no GitHub authentication and declares no protected resources.
++ */
++export class PiAgent extends Disposable implements IAgent {
++
++	readonly id = PI_AGENT_PROVIDER_ID;
++
++	private readonly _onDidChatProgress = this._register(new Emitter<AgentSignal>());
++	readonly onDidChatProgress = this._onDidChatProgress.event;
++	readonly onDidMaterializeChat = Event.None;
++	readonly onDidChangeChatData = Event.None;
++	readonly onDidSpawnChat = Event.None;
++	readonly onDidDiscoverChats: Event<readonly IAgentDiscoveredChat[]> = Event.None;
++
++	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, [setupModel()]);
++	readonly models = this._models;
++
++	private readonly _chats = new Map<string, IPiChat>();
++	private _partCounter = 0;
++	private _deps: Promise<IPiDeps> | undefined;
++	/** Live Pi model collection built from the providers pushed by the editor. */
++	private _piModels: PiModels | undefined;
++	private _payload: IPiProvidersPayload = { providers: [] };
++	/** Tool calls waiting for the user's approval, by tool call id. */
++	private readonly _pendingApprovals = new Map<string, { readonly chat: URI; readonly resolve: (approved: boolean) => void }>();
++
++	constructor(
++		@ILogService private readonly _logService: ILogService,
++	) {
++		super();
++		void this.refreshModels();
++	}
++
++	getDescriptor(): IAgentDescriptor {
++		return {
++			provider: PI_AGENT_PROVIDER_ID,
++			displayName: 'Pi',
++			description: 'Pi agent',
++			capabilities: {},
++		};
++	}
++
++	// ---- Runtime and models --------------------------------------------------
++
++	private _getDeps(): Promise<IPiDeps> {
++		this._deps ??= loadPiDeps();
++		return this._deps;
++	}
++
++	/**
++	 * Receives the provider configuration, with API keys, pushed in memory by the
++	 * editor over the authentication handshake. Nothing here is persisted.
++	 */
++	async handleAuthenticationToken(params: AuthenticateParams): Promise<boolean> {
++		if (params.resource !== PI_PROVIDERS_RESOURCE) {
++			return false;
++		}
++		this._payload = parsePiProvidersPayload(params.token);
++		const enabled = this._payload.providers.filter(row => row.enabled);
++		this._logService.info(`[Pi] received ${this._payload.providers.length} providers (${enabled.length} enabled, ${enabled.filter(row => row.apiKey).length} with a key)`);
++		await this.refreshModels();
++		return true;
++	}
++
++	/** Rebuild Pi's models from the current providers and republish the model list. */
++	async refreshModels(): Promise<void> {
++		try {
++			const deps = await this._getDeps();
++			const piModels = this._piModels = await buildPiModels(deps, this._payload);
++			const available = await piModels.getAvailable();
++			const infos = available
++				.filter(model => !NON_CHAT_MODEL.test(model.id))
++				.map((model): IAgentModelInfo => ({
++					provider: PI_AGENT_PROVIDER_ID,
++					id: `${model.provider}/${model.id}`,
++					name: `${model.name} (${this._providerName(model.provider)})`,
++					maxContextWindow: model.contextWindow,
++					maxOutputTokens: model.maxTokens,
++					supportsVision: model.input.includes('image'),
++				}));
++			this._logService.info(`[Pi] publishing ${infos.length} models from ${new Set(infos.map(info => info.id.split('/')[0])).size} providers`);
++			this._models.set(infos.length ? infos : [setupModel()], undefined);
++		} catch (error) {
++			this._logService.error('[Pi] failed to load providers', error);
++			this._models.set([setupModel(`Providers failed to load: ${error instanceof Error ? error.message : String(error)}`)], undefined);
++		}
++	}
++
++	private _providerName(providerId: string): string {
++		return this._payload.providers.find(row => row.id === providerId)?.name ?? providerId;
++	}
++
++	private _resolveModel(selection: string | undefined): PiModel | undefined {
++		const wanted = selection && selection !== SETUP_MODEL_ID ? selection : this._defaultModelId();
++		if (!wanted || !this._piModels) {
++			return undefined;
++		}
++		const [provider, ...rest] = wanted.split('/');
++		return this._piModels.getModel(provider, rest.join('/'));
++	}
++
++	/** The configured default if it is published, otherwise the first published model. */
++	private _defaultModelId(): string | undefined {
++		const ids = this._models.get().map(model => model.id).filter(id => id !== SETUP_MODEL_ID);
++		const configured = this._payload.defaultModel;
++		return configured && ids.includes(configured) ? configured : ids[0];
++	}
++
++	// ---- Chats ---------------------------------------------------------------
++
++	private _entry(chat: URI): IPiChat {
++		const key = chat.toString();
++		let entry = this._chats.get(key);
++		if (!entry) {
++			const now = Date.now();
++			entry = { chat, startTime: now, modifiedTime: now, model: undefined, agent: undefined, aborted: false, cwd: undefined, turnId: undefined, toolInfo: new Map(), deniedTools: new Set() };
++			this._chats.set(key, entry);
++		}
++		return entry;
++	}
++
++	private _fire(chat: URI, action: Extract<AgentSignal, { kind: 'action' }>['action']): void {
++		this._onDidChatProgress.fire({ kind: 'action', resource: chat, action });
++	}
++
++	readonly chats: IAgentChats = {
++		createChat: async (chat: URI, _context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
++			this._entry(chat).model = options?.model?.id;
++			return { resolvedWorkingDirectory: options?.workingDirectories?.[0] };
++		},
++		disposeChat: async (chat: URI): Promise<void> => {
++			const entry = this._chats.get(chat.toString());
++			this._settleApprovals(chat, false);
++			entry?.agent?.abort();
++			this._chats.delete(chat.toString());
++		},
++		releaseChat: async (): Promise<void> => { },
++		sendMessage: async (chat: URI, prompt: string, workingDirectories: readonly URI[] | URI | undefined, _attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> => {
++			const cwd = Array.isArray(workingDirectories) ? workingDirectories[0] : (workingDirectories as URI | undefined);
++			// Run asynchronously: the host dispatches turn lifecycle from our signals.
++			void this._runTurn(this._entry(chat), prompt, turnId ?? generateUuid(), cwd);
++		},
++		abort: async (chat: URI): Promise<void> => {
++			const entry = this._chats.get(chat.toString());
++			if (entry?.agent) {
++				entry.aborted = true;
++				this._settleApprovals(chat, false);
++				entry.agent.abort();
++			}
++		},
++		getModel: (chat: URI): ModelSelection | undefined => {
++			const model = this._chats.get(chat.toString())?.model;
++			return model ? { id: model } : undefined;
++		},
++		changeModel: async (chat: URI, model: ModelSelection): Promise<void> => {
++			this._entry(chat).model = model.id;
++		},
++		changeAgent: async (_chat: URI, _agent: AgentSelection | undefined): Promise<void> => { },
++		getMessages: async (): Promise<readonly Turn[]> => [],
++	};
++
++	private async _runTurn(entry: IPiChat, prompt: string, turnId: string, cwd: URI | undefined): Promise<void> {
++		const chat = entry.chat;
++		const startedAt = Date.now();
++		entry.modifiedTime = startedAt;
++		entry.aborted = false;
++		const fail = (errorType: string, message: string) => this._fire(chat, { type: ActionType.ChatError, turnId, duration: Date.now() - startedAt, error: { errorType, message } });
++
++		try {
++			const deps = await this._getDeps();
++			if (!this._piModels || (await this._piModels.getAvailable()).length === 0) {
++				fail('pi.noProviders', 'No AI providers are configured. Run "Pi: Manage Providers" from the Command Palette to add one.');
++				return;
++			}
++			const model = this._resolveModel(entry.model);
++			if (!model) {
++				fail('pi.unknownModel', `Model "${entry.model ?? 'default'}" is not available.`);
++				return;
++			}
++
++			const agent = entry.agent ??= new deps.core.Agent({
++				initialState: { systemPrompt: buildSystemPrompt(cwd), model },
++				// Always the live collection, so provider edits apply to existing chats.
++				streamFn: (...args) => this._piModels!.streamSimple(...args),
++			});
++			agent.state.model = model;
++			entry.cwd = cwd?.fsPath ?? entry.cwd;
++			entry.turnId = turnId;
++			entry.toolInfo.clear();
++			entry.deniedTools.clear();
++			agent.state.tools = entry.cwd ? createPiTools(entry.cwd) : [];
++			agent.beforeToolCall = (context, signal) => this._beforeToolCall(entry, context, signal);
++
++			let lastError: string | undefined;
++			const parts = new Map<string, string>();
++			const unsubscribe = agent.subscribe(event => {
++				if (event.type === 'message_start' && event.message.role === 'assistant') {
++					parts.clear();
++				} else if (event.type === 'message_update') {
++					this._onMessageUpdate(chat, turnId, parts, event.assistantMessageEvent);
++				} else if (event.type === 'tool_execution_end') {
++					this._onToolEnd(entry, turnId, event.toolCallId, event.result, event.isError);
++				} else if (event.type === 'message_end' && event.message.role === 'assistant') {
++					const message = event.message;
++					this._fire(chat, {
++						type: ActionType.ChatUsage,
++						turnId,
++						usage: { inputTokens: message.usage.input, outputTokens: message.usage.output, cacheReadTokens: message.usage.cacheRead, model: `${message.provider}/${message.model}` },
++					});
++					if (message.stopReason === 'error') {
++						lastError = message.errorMessage ?? 'The model returned an error.';
++					}
++				}
++			});
++
++			try {
++				await agent.prompt(prompt);
++			} finally {
++				unsubscribe();
++			}
++
++			if (entry.aborted) {
++				return; // the host already dispatched the cancellation
++			}
++			if (lastError) {
++				fail('pi.modelError', lastError);
++			} else {
++				this._fire(chat, { type: ActionType.ChatTurnComplete, turnId, duration: Date.now() - startedAt });
++			}
++		} catch (error) {
++			if (!entry.aborted) {
++				fail('pi.error', error instanceof Error ? error.message : String(error));
++			}
++		}
++	}
++
++	/** Map one Pi assistant stream event onto host response-part actions. */
++	private _onMessageUpdate(chat: URI, turnId: string, parts: Map<string, string>, event: { readonly type: string; readonly contentIndex?: number; readonly delta?: string }): void {
++		const index = event.contentIndex ?? 0;
++		switch (event.type) {
++			case 'text_start': {
++				const id = `pi-md-${++this._partCounter}`;
++				parts.set(`text:${index}`, id);
++				this._fire(chat, { type: ActionType.ChatResponsePart, turnId, part: { kind: ResponsePartKind.Markdown, id, content: '' } });
++				break;
++			}
++			case 'text_delta': {
++				const id = parts.get(`text:${index}`);
++				if (id && event.delta) {
++					this._fire(chat, { type: ActionType.ChatDelta, turnId, partId: id, content: event.delta });
++				}
++				break;
++			}
++			case 'thinking_start': {
++				const id = `pi-rs-${++this._partCounter}`;
++				parts.set(`thinking:${index}`, id);
++				this._fire(chat, { type: ActionType.ChatResponsePart, turnId, part: { kind: ResponsePartKind.Reasoning, id, content: '' } });
++				break;
++			}
++			case 'thinking_delta': {
++				const id = parts.get(`thinking:${index}`);
++				if (id && event.delta) {
++					this._fire(chat, { type: ActionType.ChatReasoning, turnId, partId: id, content: event.delta });
++				}
++				break;
++			}
++		}
++	}
++
++	/**
++	 * Called by Pi before each tool executes. Tells the host about the call,
++	 * waits for the user's approval when needed, and blocks denied or unsafe calls.
++	 */
++	private readonly _beforeToolCall = async (entry: IPiChat, context: Parameters<PiBeforeToolCall>[0], signal?: AbortSignal): ReturnType<PiBeforeToolCall> => {
++		const chat = entry.chat;
++		const turnId = entry.turnId ?? generateUuid();
++		const toolCall = context.toolCall;
++		const info = describePiTool(entry.cwd ?? '.', toolCall.name, context.args);
++		entry.toolInfo.set(toolCall.id, info);
++
++		this._fire(chat, { type: ActionType.ChatToolCallStart, turnId, toolCallId: toolCall.id, toolName: toolCall.name, displayName: info.displayName });
++
++		if (info.blockedReason) {
++			this._fire(chat, { type: ActionType.ChatToolCallReady, turnId, toolCallId: toolCall.id, invocationMessage: info.invocationMessage, toolInput: info.toolInput, confirmed: ToolCallConfirmationReason.NotNeeded });
++			return { block: true, reason: info.blockedReason };
++		}
++
++		if (!info.needsConfirmation) {
++			this._fire(chat, { type: ActionType.ChatToolCallReady, turnId, toolCallId: toolCall.id, invocationMessage: info.invocationMessage, toolInput: info.toolInput, confirmed: ToolCallConfirmationReason.NotNeeded });
++			return undefined;
++		}
++
++		const approval = new Promise<boolean>(resolve => {
++			this._pendingApprovals.set(toolCall.id, { chat, resolve });
++			signal?.addEventListener('abort', () => this.respondToPermissionRequest(toolCall.id, false), { once: true });
++		});
++		this._onDidChatProgress.fire({
++			kind: 'pending_confirmation',
++			chat,
++			state: {
++				status: ToolCallStatus.PendingConfirmation,
++				toolCallId: toolCall.id,
++				toolName: toolCall.name,
++				displayName: info.displayName,
++				invocationMessage: info.invocationMessage,
++				toolInput: info.toolInput,
++				confirmationTitle: info.invocationMessage,
++			},
++			permissionKind: info.permissionKind,
++			permissionPath: info.permissionPath,
++		});
++		if (await approval) {
++			return undefined;
++		}
++		entry.deniedTools.add(toolCall.id);
++		return { block: true, reason: 'The user did not approve this tool call.' };
++	};
++
++	/** Report a finished tool call to the host. */
++	private _onToolEnd(entry: IPiChat, turnId: string, toolCallId: string, result: unknown, isError: boolean): void {
++		if (entry.deniedTools.has(toolCallId)) {
++			return; // the host already finalized a denied call
++		}
++		const info = entry.toolInfo.get(toolCallId);
++		const blocks = (result && typeof result === 'object' && Array.isArray((result as { content?: unknown }).content)) ? (result as { content: { type?: string; text?: string }[] }).content : [];
++		const output = blocks.filter(block => block.type === 'text' && typeof block.text === 'string').map(block => block.text).join('\n');
++		const toolResult: ToolCallResult = {
++			success: !isError,
++			pastTenseMessage: info?.pastTenseMessage ?? 'Ran tool',
++			content: output ? [{ type: ToolResultContentType.Text, text: output }] : undefined,
++			error: isError ? { message: output || 'The tool failed.' } : undefined,
++		};
++		this._fire(entry.chat, { type: ActionType.ChatToolCallComplete, turnId, toolCallId, result: toolResult });
++	}
++
++	async materializeChat(chat: URI, _context: URI | IAgentChatContext, _providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
++		this._entry(chat);
++	}
++
++	async getChatMetadata(chat: URI): Promise<IAgentChatMetadata | undefined> {
++		const entry = this._chats.get(chat.toString());
++		return entry && { chat, startTime: entry.startTime, modifiedTime: entry.modifiedTime };
++	}
++
++	async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined> {
++		return [];
++	}
++
++	// ---- Clients and interaction --------------------------------------------
++
++	getOrCreateActiveClient(_chat: URI, _context: URI | IAgentChatContext, client: { readonly clientId: string; readonly displayName?: string }, _hostCustomizations?: readonly Customization[]): IActiveClient {
++		return { clientId: client.clientId, displayName: client.displayName, tools: [], customizations: [] };
++	}
++
++	removeActiveClient(): void { }
++
++	onClientToolCallComplete(_chat: URI, _toolCallId: string, _result: ToolCallResult): void { }
++
++	respondToPermissionRequest(requestId: string, approved: boolean): void {
++		const pending = this._pendingApprovals.get(requestId);
++		if (pending) {
++			this._pendingApprovals.delete(requestId);
++			pending.resolve(approved);
++		}
++	}
++
++	/** Resolve every pending approval for a chat (used on abort and dispose). */
++	private _settleApprovals(chat: URI, approved: boolean): void {
++		for (const [id, pending] of this._pendingApprovals) {
++			if (pending.chat.toString() === chat.toString()) {
++				this._pendingApprovals.delete(id);
++				pending.resolve(approved);
++			}
++		}
++	}
++
++	respondToUserInputRequest(): void { }
++
++	// ---- Configuration -------------------------------------------------------
++
++	async resolveChatConfig(params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult> {
++		return { schema: { type: 'object', properties: {} }, values: params.config ?? {} };
++	}
++
++	getInheritedChatConfig(): undefined {
++		return undefined;
++	}
++
++	async chatConfigCompletions(_params: IAgentChatConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
++		return { items: [] };
++	}
++
++	async getChatCustomizations(): Promise<readonly Customization[]> {
++		return [];
++	}
++
++	// ---- Authentication ------------------------------------------------------
++
++	getProtectedResources(): ProtectedResourceMetadata[] {
++		return [];
++	}
++
++	async authenticate(_resource: string, _token: string): Promise<boolean> {
++		return true;
++	}
++
++	// ---- Lifecycle -----------------------------------------------------------
++
++	async shutdown(): Promise<void> {
++		for (const entry of this._chats.values()) {
++			entry.agent?.abort();
++		}
++	}
++}
++
++function setupModel(reason = 'No providers yet: run "Pi: Manage Providers"'): IAgentModelInfo {
++	return { provider: PI_AGENT_PROVIDER_ID, id: SETUP_MODEL_ID, name: reason, supportsVision: false };
++}
++
++function buildSystemPrompt(cwd: URI | undefined): string {
++	const lines = ['You are Pi, a concise and capable coding assistant running inside the editor.'];
++	if (cwd) {
++		lines.push(`The working directory is ${cwd.fsPath}. You can read and list files, write and edit files, and run shell commands there; writes and commands are shown to the user for approval.`);
++	}
++	return lines.join('\n');
++}
+diff --git a/src/vs/platform/agentHost/node/pi/piProviderRuntime.ts b/src/vs/platform/agentHost/node/pi/piProviderRuntime.ts
+new file mode 100644
+index 00000000..9bb6a5fd
+--- /dev/null
++++ b/src/vs/platform/agentHost/node/pi/piProviderRuntime.ts
+@@ -0,0 +1,165 @@
++/*---------------------------------------------------------------------------------------------
++ *  Copyright (c) Microsoft Corporation. All rights reserved.
++ *  Licensed under the MIT License. See License.txt in the project root for license information.
++ *--------------------------------------------------------------------------------------------*/
++
++import type { Credential, CredentialInfo, CredentialStore } from '@earendil-works/pi-ai';
++import { PI_PROVIDER_PRESETS } from '../../common/piProviderPresets.js';
++import type { IPiModelConfig, IPiProviderConfig, IPiProvidersPayload } from '../../common/piProviders.js';
++
++export type PiAi = typeof import('@earendil-works/pi-ai');
++export type PiCore = typeof import('@earendil-works/pi-agent-core');
++type PiOpenAiCompletions = typeof import('@earendil-works/pi-ai/api/openai-completions.lazy');
++type PiAnthropicMessages = typeof import('@earendil-works/pi-ai/api/anthropic-messages.lazy');
++export type PiModels = ReturnType<PiAi['createModels']>;
++export type PiModel = NonNullable<ReturnType<PiModels['getModel']>>;
++
++/** Modules the runtime needs, loaded lazily so a missing package cannot break host startup. */
++export interface IPiDeps {
++	readonly ai: PiAi;
++	readonly core: PiCore;
++	readonly openai: PiOpenAiCompletions;
++	readonly anthropic: PiAnthropicMessages;
++}
++
++export async function loadPiDeps(): Promise<IPiDeps> {
++	const [ai, core, openai, anthropic] = await Promise.all([
++		import('@earendil-works/pi-ai'),
++		import('@earendil-works/pi-agent-core'),
++		import('@earendil-works/pi-ai/api/openai-completions.lazy'),
++		import('@earendil-works/pi-ai/api/anthropic-messages.lazy'),
++	]);
++	return { ai, core, openai, anthropic };
++}
++
++type PiProvider = ReturnType<PiAi['createProvider']>;
++const KNOWN_BUILTIN_IDS: ReadonlySet<string> = new Set(PI_PROVIDER_PRESETS.map(preset => preset.id));
++
++/**
++ * Load one built-in provider by id.
++ *
++ * Deliberately not `providers/all`: that entry statically imports a hidden dotfile
++ * (`data/.manifest.json`) which this app's packaging step strips from node_modules,
++ * so it cannot load in the built app. Per-provider modules only import plain files.
++ * Only ids from the generated preset list are accepted.
++ */
++async function loadBuiltinProvider(id: string): Promise<PiProvider | undefined> {
++	if (!KNOWN_BUILTIN_IDS.has(id)) {
++		return undefined;
++	}
++	const module = await import(`@earendil-works/pi-ai/providers/${id}`) as Record<string, unknown>;
++	// Factory names follow the id (`anthropic` -> `anthropicProvider`) but acronyms differ
++	// (`azureOpenAIResponsesProvider`), so match case-insensitively.
++	const wanted = `${id.replace(/-/g, '')}provider`;
++	const key = Object.keys(module).find(name => name.toLowerCase() === wanted);
++	const factory = key ? module[key] : undefined;
++	return typeof factory === 'function' ? (factory as () => PiProvider)() : undefined;
++}
++
++/** In-memory `CredentialStore`: `modify` is the only write path; returning `undefined` leaves the entry unchanged. */
++export class PiMemoryCredentialStore implements CredentialStore {
++	private readonly _map = new Map<string, Credential>();
++
++	set(providerId: string, credential: Credential): void {
++		this._map.set(providerId, credential);
++	}
++
++	async read(providerId: string): Promise<Credential | undefined> {
++		return this._map.get(providerId);
++	}
++
++	async list(): Promise<readonly CredentialInfo[]> {
++		return [...this._map].map(([providerId, credential]) => ({ providerId, type: credential.type }));
++	}
++
++	async modify(providerId: string, fn: (current: Credential | undefined) => Promise<Credential | undefined>): Promise<Credential | undefined> {
++		const current = this._map.get(providerId);
++		const next = await fn(current);
++		if (next === undefined) {
++			return current;
++		}
++		this._map.set(providerId, next);
++		return next;
++	}
++
++	async delete(providerId: string): Promise<void> {
++		this._map.delete(providerId);
++	}
++}
++
++/** Fallback limits for a model id Pi's catalog does not know (a generic text-only model). */
++const FALLBACK_CONTEXT_WINDOW = 128_000;
++const FALLBACK_MAX_TOKENS = 16_384;
++
++/**
++ * Build a Pi model collection from configured providers.
++ *
++ * Pi's catalog is authoritative for metadata of models it knows (even when they
++ * are served through a custom endpoint); unknown ids still work as plain
++ * text-only models with conservative limits.
++ */
++export async function buildPiModels(deps: IPiDeps, payload: IPiProvidersPayload): Promise<PiModels> {
++	const credentials = new PiMemoryCredentialStore();
++
++	// Start from an empty collection so only enabled rows are offered.
++	const collection = deps.ai.createModels({ credentials });
++	// Metadata for model ids Pi already knows, taken from the built-in providers in use.
++	const known = new Map<string, PiModel>();
++	const enabled = payload.providers.filter(row => row.enabled);
++
++	for (const row of enabled.filter(candidate => candidate.kind === 'builtin')) {
++		try {
++			const provider = await loadBuiltinProvider(row.id);
++			if (!provider) {
++				continue;
++			}
++			collection.setProvider(provider);
++			if (row.apiKey) {
++				credentials.set(provider.id, { type: 'api_key', key: row.apiKey });
++			}
++			for (const model of provider.getModels()) {
++				if (!known.has(model.id)) {
++					known.set(model.id, model as PiModel);
++				}
++			}
++		} catch {
++			// One provider failing to load must not take the others down.
++		}
++	}
++	for (const row of enabled.filter(candidate => candidate.kind !== 'builtin')) {
++		collection.setProvider(buildCustomProvider(deps, row, row.apiKey, known));
++	}
++	return collection;
++}
++
++function buildCustomProvider(deps: IPiDeps, row: IPiProviderConfig, apiKey: string | undefined, known: ReadonlyMap<string, PiModel>) {
++	const isAnthropic = row.kind === 'anthropic-compatible';
++	const api = isAnthropic ? 'anthropic-messages' : 'openai-completions';
++	const baseUrl = (row.baseUrl ?? '').replace(/\/+$/, '');
++	const toModel = (config: IPiModelConfig): PiModel => {
++		const catalog = known.get(config.id);
++		const base = {
++			id: config.id,
++			name: config.alias ?? catalog?.name ?? config.id,
++			api,
++			provider: row.id,
++			baseUrl,
++			reasoning: catalog?.reasoning ?? false,
++			input: catalog?.input ?? ['text'],
++			cost: catalog?.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
++			contextWindow: config.contextWindow ?? catalog?.contextWindow ?? FALLBACK_CONTEXT_WINDOW,
++			maxTokens: config.maxTokens ?? catalog?.maxTokens ?? FALLBACK_MAX_TOKENS,
++			headers: row.headers ? { ...row.headers } : undefined,
++		};
++		return base as unknown as PiModel;
++	};
++	return deps.ai.createProvider({
++		id: row.id,
++		name: row.name,
++		baseUrl,
++		// A configured key wins; an empty key resolves as a keyless endpoint (local servers).
++		auth: { apiKey: { name: `${row.name} API key`, resolve: async () => ({ auth: apiKey ? { apiKey } : {} }) } },
++		models: row.models.map(toModel),
++		api: isAnthropic ? deps.anthropic.anthropicMessagesApi() : deps.openai.openAICompletionsApi(),
++	} as never);
++}
+diff --git a/src/vs/platform/agentHost/node/pi/piTools.ts b/src/vs/platform/agentHost/node/pi/piTools.ts
+new file mode 100644
+index 00000000..fb0a719b
+--- /dev/null
++++ b/src/vs/platform/agentHost/node/pi/piTools.ts
+@@ -0,0 +1,268 @@
++/*---------------------------------------------------------------------------------------------
++ *  Copyright (c) Microsoft Corporation. All rights reserved.
++ *  Licensed under the MIT License. See License.txt in the project root for license information.
++ *--------------------------------------------------------------------------------------------*/
++
++import { spawn } from 'child_process';
++import { promises as fs } from 'fs';
++import { homedir } from 'os';
++import type { AgentTool } from '@earendil-works/pi-agent-core';
++import { Type } from 'typebox';
++import { basename, dirname, isAbsolute, relative, resolve } from '../../../../base/common/path.js';
++
++/**
++ * File and shell tools for the Pi agent.
++ *
++ * Safety model (enforced in two places: the approval step in `PiAgent`, via
++ * {@link describePiTool}, and again inside each tool's `execute`):
++ *  - writes and shell commands always require confirmation; the Agent Host
++ *    applies its own approval policy on top using `permissionKind`/`permissionPath`;
++ *  - reads inside the working directory need no confirmation, reads outside do;
++ *  - likely secret files are blocked outright (`.env*`, `~/.ssh`, `~/.aws`, `~/.gnupg`
++ *    and the Pi credentials file), so a model can never read an API key and send it
++ *    to a provider.
++ */
++
++const MAX_READ_LINES = 2000;
++const MAX_TEXT_CHARS = 100_000;
++const MAX_LIST_ENTRIES = 500;
++const MAX_SHELL_OUTPUT_CHARS = 50_000;
++const DEFAULT_SHELL_TIMEOUT_SECONDS = 120;
++
++export type PiToolName = 'read_file' | 'list_dir' | 'write_file' | 'edit_file' | 'bash';
++
++export interface IPiToolInfo {
++	readonly displayName: string;
++	readonly invocationMessage: string;
++	readonly pastTenseMessage: string;
++	/** Raw input shown to the user in the confirmation (a command, a path). */
++	readonly toolInput: string;
++	readonly needsConfirmation: boolean;
++	readonly permissionKind?: 'read' | 'write' | 'shell';
++	readonly permissionPath?: string;
++	/** When set, the call must not run; this is the reason returned to the model. */
++	readonly blockedReason?: string;
++}
++
++function isInside(root: string, target: string): boolean {
++	const rel = relative(root, target);
++	return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
++}
++
++export function isSecretPath(absolutePath: string): boolean {
++	const name = basename(absolutePath);
++	if (/^\.env(\..*)?$/.test(name)) {
++		return true;
++	}
++	const home = homedir();
++	if (['.ssh', '.aws', '.gnupg'].some(dir => isInside(resolve(home, dir), absolutePath))) {
++		return true;
++	}
++	return false;
++}
++
++const SECRET_REASON = 'Access to likely secret files (.env*, ~/.ssh, ~/.aws, ~/.gnupg) is blocked.';
++
++function asString(value: unknown): string {
++	return typeof value === 'string' ? value : '';
++}
++
++/** Describe a tool call: what to show the user, and whether it needs confirmation or is blocked. */
++export function describePiTool(cwd: string, name: string, args: unknown): IPiToolInfo {
++	const params = (args && typeof args === 'object' ? args : {}) as Record<string, unknown>;
++	const pathArg = asString(params['path']) || '.';
++	const absolute = resolve(cwd, pathArg);
++	const rel = relative(cwd, absolute) || '.';
++
++	switch (name) {
++		case 'read_file':
++		case 'list_dir': {
++			const isList = name === 'list_dir';
++			const outside = !isInside(cwd, absolute);
++			return {
++				displayName: isList ? 'List Directory' : 'Read File',
++				invocationMessage: `${isList ? 'Listing' : 'Reading'} ${rel}`,
++				pastTenseMessage: `${isList ? 'Listed' : 'Read'} ${rel}`,
++				toolInput: absolute,
++				needsConfirmation: outside,
++				permissionKind: 'read',
++				permissionPath: absolute,
++				blockedReason: isSecretPath(absolute) ? SECRET_REASON : undefined,
++			};
++		}
++		case 'write_file':
++		case 'edit_file': {
++			const isEdit = name === 'edit_file';
++			return {
++				displayName: isEdit ? 'Edit File' : 'Write File',
++				invocationMessage: `${isEdit ? 'Editing' : 'Writing'} ${rel}`,
++				pastTenseMessage: `${isEdit ? 'Edited' : 'Wrote'} ${rel}`,
++				toolInput: absolute,
++				needsConfirmation: true,
++				permissionKind: 'write',
++				permissionPath: absolute,
++			};
++		}
++		case 'bash': {
++			const command = asString(params['command']);
++			return {
++				displayName: 'Run Command',
++				invocationMessage: 'Running command',
++				pastTenseMessage: 'Ran command',
++				toolInput: command,
++				needsConfirmation: true,
++				permissionKind: 'shell',
++			};
++		}
++		default:
++			return { displayName: name, invocationMessage: `Running ${name}`, pastTenseMessage: `Ran ${name}`, toolInput: JSON.stringify(params), needsConfirmation: true };
++	}
++}
++
++function text(value: string) {
++	return { content: [{ type: 'text' as const, text: value }], details: {} };
++}
++
++function truncate(value: string, max: number, keep: 'head' | 'tail' = 'head'): string {
++	if (value.length <= max) {
++		return value;
++	}
++	return keep === 'head'
++		? `${value.slice(0, max)}\n[output truncated: ${value.length - max} more characters]`
++		: `[output truncated: ${value.length - max} earlier characters]\n${value.slice(value.length - max)}`;
++}
++
++/** Defence in depth: re-check blocked paths at execution time. */
++function resolveGuarded(cwd: string, name: PiToolName, args: unknown): string {
++	const info = describePiTool(cwd, name, args);
++	if (info.blockedReason) {
++		throw new Error(info.blockedReason);
++	}
++	return info.permissionPath ?? cwd;
++}
++
++export function createPiTools(cwd: string): AgentTool[] {
++	const readFile: AgentTool<ReturnType<typeof readFileSchema>> = {
++		name: 'read_file',
++		label: 'Read File',
++		description: 'Read a text file. Paths are relative to the working directory. Use offset/limit (1-based line numbers) for large files.',
++		parameters: readFileSchema(),
++		execute: async (_id, params) => {
++			const file = resolveGuarded(cwd, 'read_file', params);
++			const lines = (await fs.readFile(file, 'utf8')).split('\n');
++			const start = Math.max(1, Math.floor(params.offset ?? 1));
++			const limit = Math.min(MAX_READ_LINES, Math.max(1, Math.floor(params.limit ?? MAX_READ_LINES)));
++			const slice = lines.slice(start - 1, start - 1 + limit);
++			const header = `[${file}: lines ${start}-${start + slice.length - 1} of ${lines.length}]\n`;
++			return text(header + truncate(slice.join('\n'), MAX_TEXT_CHARS));
++		},
++	};
++
++	const listDir: AgentTool<ReturnType<typeof listDirSchema>> = {
++		name: 'list_dir',
++		label: 'List Directory',
++		description: 'List the entries of a directory (default: the working directory). Directories end with "/".',
++		parameters: listDirSchema(),
++		execute: async (_id, params) => {
++			const dir = resolveGuarded(cwd, 'list_dir', { path: params.path ?? '.' });
++			const entries = await fs.readdir(dir, { withFileTypes: true });
++			const names = entries.map(entry => entry.isDirectory() ? `${entry.name}/` : entry.name).sort();
++			const shown = names.slice(0, MAX_LIST_ENTRIES);
++			return text(shown.join('\n') + (names.length > shown.length ? `\n[${names.length - shown.length} more entries not shown]` : ''));
++		},
++	};
++
++	const writeFile: AgentTool<ReturnType<typeof writeFileSchema>> = {
++		name: 'write_file',
++		label: 'Write File',
++		description: 'Create or overwrite a file with the given content. Parent directories are created.',
++		parameters: writeFileSchema(),
++		execute: async (_id, params) => {
++			const file = resolveGuarded(cwd, 'write_file', params);
++			await fs.mkdir(dirname(file), { recursive: true });
++			await fs.writeFile(file, params.content, 'utf8');
++			return text(`Wrote ${params.content.length} characters to ${file}`);
++		},
++	};
++
++	const editFile: AgentTool<ReturnType<typeof editFileSchema>> = {
++		name: 'edit_file',
++		label: 'Edit File',
++		description: 'Replace exactly one occurrence of oldText with newText in a file. Fails if oldText is missing or appears more than once; include enough surrounding context to make it unique.',
++		parameters: editFileSchema(),
++		execute: async (_id, params) => {
++			const file = resolveGuarded(cwd, 'edit_file', params);
++			const original = await fs.readFile(file, 'utf8');
++			const occurrences = params.oldText ? original.split(params.oldText).length - 1 : 0;
++			if (occurrences !== 1) {
++				throw new Error(occurrences === 0 ? 'oldText was not found in the file.' : `oldText appears ${occurrences} times; make it unique.`);
++			}
++			await fs.writeFile(file, original.replace(params.oldText, () => params.newText), 'utf8');
++			return text(`Edited ${file} (1 replacement)`);
++		},
++	};
++
++	const bash: AgentTool<ReturnType<typeof bashSchema>> = {
++		name: 'bash',
++		label: 'Run Command',
++		description: 'Run a shell command in the working directory and return its combined output. Fails on a non-zero exit code.',
++		parameters: bashSchema(),
++		execute: async (_id, params, signal) => {
++			const timeoutMs = Math.max(1, params.timeoutSeconds ?? DEFAULT_SHELL_TIMEOUT_SECONDS) * 1000;
++			const output = await new Promise<{ code: number | null; text: string }>((resolvePromise, reject) => {
++				const env = { ...process.env };
++				delete env['PI_DOTENV'];
++				const child = spawn(params.command, { cwd, shell: true, signal, env });
++				let combined = '';
++				const onData = (chunk: Buffer) => {
++					combined += chunk.toString('utf8');
++					if (combined.length > MAX_SHELL_OUTPUT_CHARS * 2) {
++						combined = combined.slice(combined.length - MAX_SHELL_OUTPUT_CHARS * 2);
++					}
++				};
++				child.stdout.on('data', onData);
++				child.stderr.on('data', onData);
++				const timer = setTimeout(() => child.kill('SIGKILL'), timeoutMs);
++				child.on('error', error => { clearTimeout(timer); reject(error); });
++				child.on('close', code => { clearTimeout(timer); resolvePromise({ code, text: combined }); });
++			});
++			const body = truncate(output.text, MAX_SHELL_OUTPUT_CHARS, 'tail');
++			if (output.code !== 0) {
++				throw new Error(`Command exited with code ${output.code}.\n${body}`);
++			}
++			return text(body || '(no output)');
++		},
++	};
++
++	return [readFile, listDir, writeFile, editFile, bash] as unknown as AgentTool[];
++}
++
++function readFileSchema() {
++	return Type.Object({
++		path: Type.String({ description: 'File path, relative to the working directory or absolute.' }),
++		offset: Type.Optional(Type.Number({ description: '1-based line to start at.' })),
++		limit: Type.Optional(Type.Number({ description: 'Maximum number of lines to return.' })),
++	});
++}
++function listDirSchema() {
++	return Type.Object({ path: Type.Optional(Type.String({ description: 'Directory path. Defaults to the working directory.' })) });
++}
++function writeFileSchema() {
++	return Type.Object({
++		path: Type.String({ description: 'File path to create or overwrite.' }),
++		content: Type.String({ description: 'Full file content.' }),
++	});
++}
++function editFileSchema() {
++	return Type.Object({
++		path: Type.String({ description: 'File path to edit.' }),
++		oldText: Type.String({ description: 'Exact text to replace; must occur exactly once.' }),
++		newText: Type.String({ description: 'Replacement text.' }),
++	});
++}
++function bashSchema() {
++	return Type.Object({
++		command: Type.String({ description: 'Shell command to run.' }),
++		timeoutSeconds: Type.Optional(Type.Number({ description: 'Timeout in seconds (default 120).' })),
++	});
++}

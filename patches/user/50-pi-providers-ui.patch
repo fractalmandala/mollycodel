@@ -1,0 +1,731 @@
+diff --git a/src/vs/sessions/sessions.desktop.main.ts b/src/vs/sessions/sessions.desktop.main.ts
+index a667aa0a..aea8d8e9 100644
+--- a/src/vs/sessions/sessions.desktop.main.ts
++++ b/src/vs/sessions/sessions.desktop.main.ts
+@@ -229,2 +229,3 @@ import './electron-browser/sessions.desktop.contribution.js';
+ import '../workbench/services/agentHost/electron-browser/agentHostService.js';
++import '../workbench/contrib/piProviders/browser/piProviders.contribution.js';
+ import '../platform/agentHost/electron-browser/sshRemoteAgentHostService.js';
+diff --git a/src/vs/workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.ts b/src/vs/workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.ts
+index 973051a3..da6b1786 100644
+--- a/src/vs/workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.ts
++++ b/src/vs/workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.ts
+@@ -191,3 +191,3 @@ export class ModelPickerActionItem extends BaseActionViewItem {
+ 		if (this._pickerWidget.isSetupRequired()) {
+-			return localize('chat.modelPicker.setupRequiredHover', "{0} • Sign in to GitHub Copilot to choose a model.", label);
++			return localize('chat.modelPicker.setupRequiredHover', "{0} • Add an AI provider to choose a model.", label);
+ 		}
+diff --git a/src/vs/workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerItemSections.ts b/src/vs/workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerItemSections.ts
+index b9d20cb1..7bfd8833 100644
+--- a/src/vs/workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerItemSections.ts
++++ b/src/vs/workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerItemSections.ts
+@@ -64,3 +64,3 @@ export function buildUnavailableStateItems(options: IBuildModelPickerItemsOption
+ 		const items: IActionListItem<IActionWidgetDropdownAction>[] = [
+-			{ kind: ActionListItemKind.Header, label: localize('chat.modelPicker.setupRequired', "Sign in to use Copilot") },
++			{ kind: ActionListItemKind.Header, label: localize('chat.modelPicker.setupRequired', "No models available") },
+ 			{
+@@ -71,4 +71,4 @@ export function buildUnavailableStateItems(options: IBuildModelPickerItemsOption
+ 					class: undefined,
+-					tooltip: localize('chat.modelPicker.setupRequired.signInTooltip', "Sign in to GitHub Copilot to choose a model."),
+-					label: localize('chat.modelPicker.setupRequired.signIn', "Sign in to use Copilot..."),
++					tooltip: localize('chat.modelPicker.setupRequired.signInTooltip', "Add an AI provider to choose a model."),
++					label: localize('chat.modelPicker.setupRequired.signIn', "Add an AI provider..."),
+ 					run: () => options.actions.onRequestSetup?.(),
+@@ -76,3 +76,3 @@ export function buildUnavailableStateItems(options: IBuildModelPickerItemsOption
+ 				kind: ActionListItemKind.Action,
+-				label: localize('chat.modelPicker.setupRequired.signIn', "Sign in to use Copilot..."),
++				label: localize('chat.modelPicker.setupRequired.signIn', "Add an AI provider..."),
+ 				group: { title: '', icon: ThemeIcon.fromId(Codicon.signIn.id) },
+diff --git a/src/vs/workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWidget.ts b/src/vs/workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWidget.ts
+index ac63192d..c531ab47 100644
+--- a/src/vs/workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWidget.ts
++++ b/src/vs/workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWidget.ts
+@@ -35,3 +35,2 @@ import { IChatEntitlementService } from '../../../../../../services/chat/common/
+ import { IModelPickerDelegate } from './modelPickerActionItem.js';
+-import { CHAT_SETUP_ACTION_ID } from '../../../actions/chatActions.js';
+ import { IUriIdentityService } from '../../../../../../../platform/uriIdentity/common/uriIdentity.js';
+@@ -298,3 +297,4 @@ export class ModelPickerWidget extends Disposable {
+ 	private _requestSetup(): void {
+-		this._commandService.executeCommand(CHAT_SETUP_ACTION_ID);
++		// No GitHub sign-in in this build: setup means adding an AI provider.
++		this._commandService.executeCommand('workbench.action.pi.manageProviders');
+ 	}
+@@ -622,3 +622,3 @@ export class ModelPickerWidget extends Disposable {
+ 			: setupRequired
+-				? localize('chat.modelPicker.ariaLabelSetupRequired', "Models, sign in to use Copilot")
++				? localize('chat.modelPicker.ariaLabelSetupRequired', "Models, add an AI provider")
+ 				: localize('chat.modelPicker.ariaLabel', "Models, {0}", modelLabel);
+diff --git a/src/vs/workbench/contrib/piProviders/browser/piProviders.contribution.ts b/src/vs/workbench/contrib/piProviders/browser/piProviders.contribution.ts
+new file mode 100644
+index 00000000..c532b83c
+--- /dev/null
++++ b/src/vs/workbench/contrib/piProviders/browser/piProviders.contribution.ts
+@@ -0,0 +1,43 @@
++/*---------------------------------------------------------------------------------------------
++ *  Copyright (c) Microsoft Corporation. All rights reserved.
++ *  Licensed under the MIT License. See License.txt in the project root for license information.
++ *--------------------------------------------------------------------------------------------*/
++
++import { localize2 } from '../../../../nls.js';
++import { Disposable } from '../../../../base/common/lifecycle.js';
++import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
++import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
++import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
++import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
++import { IPiProvidersEditorService, PiProvidersEditorService } from './piProvidersEditor.js';
++import { IPiProvidersService, PiProvidersService } from './piProvidersService.js';
++
++export const PI_MANAGE_PROVIDERS_COMMAND_ID = 'workbench.action.pi.manageProviders';
++
++registerSingleton(IPiProvidersService, PiProvidersService, InstantiationType.Delayed);
++registerSingleton(IPiProvidersEditorService, PiProvidersEditorService, InstantiationType.Delayed);
++
++/** Instantiates the provider service at startup so its keys reach the agent host without opening the editor. */
++class PiProvidersSyncContribution extends Disposable implements IWorkbenchContribution {
++	static readonly ID = 'workbench.contrib.piProviders';
++
++	constructor(@IPiProvidersService _providers: IPiProvidersService) {
++		super();
++	}
++}
++
++registerWorkbenchContribution2(PiProvidersSyncContribution.ID, PiProvidersSyncContribution, WorkbenchPhase.AfterRestored);
++
++registerAction2(class ManagePiProvidersAction extends Action2 {
++	constructor() {
++		super({
++			id: PI_MANAGE_PROVIDERS_COMMAND_ID,
++			title: localize2('pi.manageProviders', "Pi: Manage Providers"),
++			f1: true,
++		});
++	}
++
++	run(accessor: ServicesAccessor): void {
++		accessor.get(IPiProvidersEditorService).open();
++	}
++});
+diff --git a/src/vs/workbench/contrib/piProviders/browser/piProvidersEditor.ts b/src/vs/workbench/contrib/piProviders/browser/piProvidersEditor.ts
+new file mode 100644
+index 00000000..a1b4c15f
+--- /dev/null
++++ b/src/vs/workbench/contrib/piProviders/browser/piProvidersEditor.ts
+@@ -0,0 +1,125 @@
++/*---------------------------------------------------------------------------------------------
++ *  Copyright (c) Microsoft Corporation. All rights reserved.
++ *  Licensed under the MIT License. See License.txt in the project root for license information.
++ *--------------------------------------------------------------------------------------------*/
++
++import { Codicon } from '../../../../base/common/codicons.js';
++import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
++import { generateUuid } from '../../../../base/common/uuid.js';
++import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
++import { PI_ENDPOINT_PRESETS, PI_PROVIDER_PRESETS } from '../../../../platform/agentHost/common/piProviderPresets.js';
++import { parsePiProvidersPayload } from '../../../../platform/agentHost/common/piProviders.js';
++import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
++import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
++import { WebviewInput } from '../../webviewPanel/browser/webviewEditorInput.js';
++import { IWebviewWorkbenchService } from '../../webviewPanel/browser/webviewWorkbenchService.js';
++import { getPiProvidersHtml } from './piProvidersPage.js';
++import { IPiProvidersService } from './piProvidersService.js';
++
++const PI_AGENT_PROVIDER = 'pi';
++const SETUP_MODEL_ID = 'pi-setup-required';
++
++export const IPiProvidersEditorService = createDecorator<IPiProvidersEditorService>('piProvidersEditorService');
++
++export interface IPiProvidersEditorService {
++	readonly _serviceBrand: undefined;
++	/** Open the Providers editor, or focus it if it is already open. */
++	open(): void;
++}
++
++export class PiProvidersEditorService extends Disposable implements IPiProvidersEditorService {
++
++	declare readonly _serviceBrand: undefined;
++
++	private _input: WebviewInput | undefined;
++
++	constructor(
++		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
++		@IEditorService private readonly _editorService: IEditorService,
++		@IPiProvidersService private readonly _providers: IPiProvidersService,
++		@IAgentHostService private readonly _agentHostService: IAgentHostService,
++	) {
++		super();
++	}
++
++	open(): void {
++		if (this._input) {
++			void this._editorService.openEditor(this._input, { preserveFocus: false }, ACTIVE_GROUP);
++			return;
++		}
++		const input = this._input = this._webviewWorkbenchService.openWebview(
++			{
++				title: 'Pi Providers',
++				options: { retainContextWhenHidden: true },
++				contentOptions: { allowScripts: true },
++				extension: undefined,
++			},
++			'pi.providers',
++			'Pi Providers',
++			Codicon.settingsGear,
++			{ group: ACTIVE_GROUP, preserveFocus: false });
++
++		const disposables = new DisposableStore();
++		const webview = input.webview;
++		webview.setHtml(getPiProvidersHtml(generateUuid(), ''));
++
++		const sendState = async () => {
++			const state = await this._providers.getState();
++			const root = this._agentHostService.rootState.value;
++			const agent = root && !(root instanceof Error) ? root.agents.find(candidate => candidate.provider === PI_AGENT_PROVIDER) : undefined;
++			const models = (agent?.models ?? []).filter(model => model.id !== SETUP_MODEL_ID).map(model => ({ id: model.id, name: model.name }));
++			// The host publishes a placeholder model whose name explains why it has no real models.
++			const hostNote = models.length === 0 ? agent?.models?.find(model => model.id === SETUP_MODEL_ID)?.name : undefined;
++			await webview.postMessage({ type: 'state', state: { providers: state.providers, defaultModel: state.defaultModel, models, hostNote: state.providers.some(provider => provider.enabled) ? (hostNote ?? (agent ? undefined : 'The agent host is not connected yet.')) : undefined, presets: { builtin: PI_PROVIDER_PRESETS, extra: PI_ENDPOINT_PRESETS } } });
++		};
++
++		disposables.add(this._providers.onDidChange(() => void sendState()));
++		disposables.add(this._agentHostService.rootState.onDidChange(() => void sendState()));
++		disposables.add(webview.onMessage(async event => {
++			const message = event.message as { type: string; [key: string]: unknown };
++			switch (message.type) {
++				case 'ready':
++					await sendState();
++					break;
++				case 'save': {
++					// Validate with the same rules the host applies; never trust the page.
++					const parsed = parsePiProvidersPayload(JSON.stringify({ providers: [message['config']] })).providers[0];
++					if (parsed) {
++						const { apiKey: _ignored, ...config } = parsed;
++						const apiKey = message['apiKey'];
++						await this._providers.saveProvider(config, typeof apiKey === 'string' ? apiKey : apiKey === null ? null : undefined);
++					}
++					break;
++				}
++				case 'remove':
++					if (typeof message['id'] === 'string') {
++						await this._providers.removeProvider(message['id']);
++					}
++					break;
++				case 'toggle':
++					if (typeof message['id'] === 'string') {
++						await this._providers.setEnabled(message['id'], message['enabled'] === true);
++					}
++					break;
++				case 'setDefault':
++					await this._providers.setDefaultModel(typeof message['model'] === 'string' ? message['model'] : undefined);
++					break;
++				case 'discover': {
++					const request = message['request'] as { kind?: string; baseUrl?: string; apiKey?: string; providerId?: string } | undefined;
++					const result = await this._providers.discoverModels({
++						kind: request?.kind === 'anthropic-compatible' ? 'anthropic-compatible' : 'openai-compatible',
++						baseUrl: typeof request?.baseUrl === 'string' ? request.baseUrl : '',
++						apiKey: typeof request?.apiKey === 'string' ? request.apiKey : undefined,
++						providerId: typeof request?.providerId === 'string' ? request.providerId : undefined,
++					});
++					await webview.postMessage({ type: 'discoverResult', requestId: message['requestId'], ...result });
++					break;
++				}
++			}
++		}));
++		disposables.add(input.onWillDispose(() => {
++			disposables.dispose();
++			this._input = undefined;
++		}));
++	}
++}
+diff --git a/src/vs/workbench/contrib/piProviders/browser/piProvidersPage.ts b/src/vs/workbench/contrib/piProviders/browser/piProvidersPage.ts
+new file mode 100644
+index 00000000..39a8240d
+--- /dev/null
++++ b/src/vs/workbench/contrib/piProviders/browser/piProvidersPage.ts
+@@ -0,0 +1,266 @@
++/*---------------------------------------------------------------------------------------------
++ *  Copyright (c) Microsoft Corporation. All rights reserved.
++ *  Licensed under the MIT License. See License.txt in the project root for license information.
++ *--------------------------------------------------------------------------------------------*/
++
++/**
++ * HTML for the Providers editor webview.
++ *
++ * Messages to the editor: ready, save, remove, toggle, setDefault, discover.
++ * Messages from the editor: state, discoverResult.
++ * The page never receives a stored API key, only a `hasKey` flag. All user data is
++ * rendered with `textContent`, never as HTML.
++ */
++export function getPiProvidersHtml(nonce: string, cspSource: string): string {
++	return `<!DOCTYPE html>
++<html lang="en">
++<head>
++<meta charset="UTF-8">
++<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}' ${cspSource}; script-src 'nonce-${nonce}';">
++<meta name="viewport" content="width=device-width, initial-scale=1.0">
++<title>Pi Providers</title>
++<style nonce="${nonce}">
++:root {
++	--bg: var(--vscode-editor-background);
++	--fg: var(--vscode-editor-foreground);
++	--muted: var(--vscode-descriptionForeground);
++	--card: var(--vscode-editorWidget-background, rgba(128,128,128,.08));
++	--border: var(--vscode-editorWidget-border, rgba(128,128,128,.25));
++	--hover: var(--vscode-list-hoverBackground, rgba(128,128,128,.12));
++	--accent: var(--vscode-button-background);
++	--accent-fg: var(--vscode-button-foreground);
++	--accent-hover: var(--vscode-button-hoverBackground);
++	--danger: var(--vscode-errorForeground);
++	--ok: var(--vscode-testing-iconPassed, #3fb950);
++	--font: var(--vscode-font-family);
++	--mono: var(--vscode-editor-font-family, monospace);
++}
++* { box-sizing: border-box; }
++html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 13px; }
++.page { max-width: 980px; margin: 0 auto; padding: 28px 28px 80px; }
++h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
++.sub { color: var(--muted); margin: 0 0 22px; }
++.row-between { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
++button { font: inherit; color: inherit; cursor: pointer; }
++.btn { border: 1px solid var(--border); background: transparent; border-radius: 8px; padding: 6px 12px; }
++.btn:hover { background: var(--hover); }
++.btn.primary { background: var(--accent); color: var(--accent-fg); border-color: transparent; font-weight: 600; }
++.btn.primary:hover { background: var(--accent-hover); }
++.btn.danger { color: var(--danger); }
++.btn:disabled { opacity: .5; cursor: default; }
++.icon-btn { border: 0; background: transparent; padding: 5px; border-radius: 6px; color: var(--muted); }
++.icon-btn:hover { background: var(--hover); color: var(--fg); }
++.section-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; margin: 26px 0 10px; }
++.count { font-size: 11px; font-weight: 600; background: var(--hover); border-radius: 999px; padding: 1px 8px; color: var(--muted); }
++.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; }
++.default-row { padding: 12px 16px; }
++.default-row .label { font-weight: 600; }
++select, input[type=text], input[type=password], input[type=url], textarea {
++	width: 100%; font: inherit; color: var(--vscode-input-foreground); background: var(--vscode-input-background);
++	border: 1px solid var(--vscode-input-border, var(--border)); border-radius: 8px; padding: 7px 10px; outline: none;
++}
++select:focus, input:focus, textarea:focus { border-color: var(--vscode-focusBorder); }
++textarea { font-family: var(--mono); min-height: 110px; resize: vertical; }
++.default-row select { width: auto; min-width: 280px; }
++.provider { display: flex; align-items: center; gap: 12px; padding: 12px 16px; margin-bottom: 8px; }
++.provider.disabled { opacity: .55; }
++.mono { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; background: var(--hover); flex: none; }
++.provider .meta { flex: 1; min-width: 0; }
++.provider .name { font-weight: 600; display: flex; align-items: center; gap: 8px; }
++.provider .detail { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
++.badge { font-size: 11px; font-weight: 600; border-radius: 999px; padding: 1px 8px; background: var(--hover); color: var(--muted); }
++.badge.ok { color: var(--ok); }
++.badge.warn { color: var(--vscode-editorWarning-foreground, #d29922); }
++.badge.def { color: var(--ok); background: rgba(63,185,80,.14); }
++.switch { width: 38px; height: 22px; border-radius: 999px; border: 0; background: var(--border); position: relative; flex: none; padding: 0; }
++.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--bg); transition: left .12s; }
++.switch[aria-checked=true] { background: var(--accent); }
++.switch[aria-checked=true]::after { left: 19px; }
++.empty { padding: 28px 16px; text-align: center; color: var(--muted); }
++.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: flex-start; justify-content: center; padding: 6vh 16px; overflow: auto; z-index: 10; }
++.dialog { width: min(920px, 100%); background: var(--bg); border: 1px solid var(--border); border-radius: 16px; padding: 22px 24px 24px; box-shadow: 0 20px 60px rgba(0,0,0,.35); }
++.dialog h2 { margin: 0; font-size: 17px; }
++.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
++.service { display: flex; align-items: center; gap: 10px; text-align: left; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); width: 100%; }
++.service:hover:not(:disabled) { background: var(--hover); }
++.service:disabled { opacity: .55; cursor: default; }
++.service .t { min-width: 0; }
++.service .n { font-weight: 600; }
++.service .e { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
++.group { margin: 18px 0 8px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
++.field { margin: 14px 0; }
++.field label { display: block; font-weight: 600; margin-bottom: 5px; }
++.hint { color: var(--muted); font-size: 12px; margin-top: 4px; }
++.status { font-size: 12px; margin-top: 6px; }
++.status.err { color: var(--danger); }
++.status.ok { color: var(--ok); }
++.actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
++.inline { display: flex; gap: 8px; align-items: center; }
++.mt { margin-top: 6px; }
++.note { margin-top: 12px; padding: 10px 14px; color: var(--vscode-editorWarning-foreground, #d29922); }
++</style>
++</head>
++<body>
++<div class="page" id="app"></div>
++<script nonce="${nonce}">
++(function () {
++	var vscode = acquireVsCodeApi();
++	var S = { providers: [], defaultModel: undefined, models: [], presets: { builtin: [], extra: [] } };
++	var dialog = null; // { step: 'pick'|'form', preset, editing, filter }
++	var discoverSeq = 0;
++	var app = document.getElementById('app');
++
++	function h(tag, attrs) {
++		var el = document.createElement(tag);
++		if (attrs) { for (var k in attrs) {
++			if (k === 'class') { el.className = attrs[k]; }
++			else if (k === 'text') { el.textContent = attrs[k]; }
++			else if (k.indexOf('on') === 0) { el.addEventListener(k.slice(2), attrs[k]); }
++			else if (attrs[k] !== undefined && attrs[k] !== false) { el.setAttribute(k, attrs[k] === true ? '' : attrs[k]); }
++		} }
++		for (var i = 2; i < arguments.length; i++) {
++			var c = arguments[i];
++			if (c === null || c === undefined || c === false) { continue; }
++			el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
++		}
++		return el;
++	}
++	function host(url) { try { var u = new URL(url); return u.host + u.pathname.replace(/\\/+$/, ''); } catch (e) { return url || ''; } }
++	function mono(name) { return h('div', { class: 'mono', text: (name || '?').trim().charAt(0).toUpperCase() }); }
++	function modelsOf(p) { return S.models.filter(function (m) { return m.id.indexOf(p.id + '/') === 0; }); }
++	function post(m) { vscode.postMessage(m); }
++
++	function render() {
++		app.textContent = '';
++		var enabledCount = S.providers.filter(function (p) { return p.enabled; }).length;
++		app.appendChild(h('div', { class: 'row-between' },
++			h('div', null, h('h1', { text: 'Pi providers' }), h('p', { class: 'sub', text: 'Connect the AI services Pi can use. API keys are stored in your operating system keychain and are never shown again.' })),
++			h('button', { class: 'btn primary', onclick: function () { dialog = { step: 'pick', filter: '' }; render(); } }, '+ Add provider')));
++
++		// Default model
++		var sel = h('select', { onchange: function (e) { post({ type: 'setDefault', model: e.target.value || undefined }); } });
++		sel.appendChild(h('option', { value: '', text: S.models.length ? 'First available model' : 'No models available yet' }));
++		S.models.forEach(function (m) { var o = h('option', { value: m.id, text: m.name }); if (m.id === S.defaultModel) { o.selected = true; } sel.appendChild(o); });
++		app.appendChild(h('div', { class: 'card default-row row-between' }, h('div', { class: 'label', text: 'Default model' }), sel));
++
++		if (S.hostNote) { app.appendChild(h('div', { class: 'card note', role: 'status' }, 'No models are loaded yet. ' + S.hostNote)); }
++		app.appendChild(h('div', { class: 'section-title' }, 'AI providers', h('span', { class: 'count', text: String(S.providers.length) })));
++		if (!S.providers.length) {
++			app.appendChild(h('div', { class: 'card empty', text: 'No providers yet. Add one to start using Pi.' }));
++		}
++		S.providers.forEach(function (p) {
++			var n = p.kind === 'builtin' ? modelsOf(p).length : p.models.length;
++			var detail = (p.kind === 'builtin' ? 'Built in' : host(p.baseUrl)) + ' \\u00b7 ' + n + ' model' + (n === 1 ? '' : 's');
++			var firstModel = p.kind === 'builtin' ? (modelsOf(p)[0] || {}).id : (p.models[0] ? p.id + '/' + p.models[0].id : undefined);
++			var isDefault = !!S.defaultModel && S.defaultModel.indexOf(p.id + '/') === 0;
++			var confirming = false;
++			var del = h('button', { class: 'icon-btn', title: 'Delete', 'aria-label': 'Delete ' + p.name, text: '\\u2715', onclick: function () {
++				if (!confirming) { confirming = true; del.textContent = 'Confirm?'; del.classList.add('danger'); setTimeout(function () { confirming = false; del.textContent = '\\u2715'; del.classList.remove('danger'); }, 3000); return; }
++				post({ type: 'remove', id: p.id });
++			} });
++			app.appendChild(h('div', { class: 'card provider' + (p.enabled ? '' : ' disabled') },
++				mono(p.name),
++				h('div', { class: 'meta' },
++					h('div', { class: 'name' }, p.name, isDefault ? h('span', { class: 'badge def', text: 'default' }) : null,
++						h('span', { class: 'badge ' + (p.hasKey ? 'ok' : (p.kind === 'builtin' ? 'warn' : '')), text: p.hasKey ? 'Key saved' : 'No key' })),
++					h('div', { class: 'detail', text: detail })),
++				(!isDefault && firstModel) ? h('button', { class: 'btn', text: 'Make default', onclick: function () { post({ type: 'setDefault', model: firstModel }); } }) : null,
++				h('button', { class: 'icon-btn', title: 'Edit', 'aria-label': 'Edit ' + p.name, text: '\\u270e', onclick: function () { dialog = { step: 'form', editing: p, preset: null }; render(); } }),
++				del,
++				h('button', { class: 'switch', role: 'switch', 'aria-checked': String(p.enabled), 'aria-label': 'Enable ' + p.name, onclick: function () { post({ type: 'toggle', id: p.id, enabled: !p.enabled }); } })));
++		});
++		if (enabledCount === 0 && S.providers.length) { app.appendChild(h('p', { class: 'hint', text: 'All providers are turned off.' })); }
++		if (dialog) { app.appendChild(dialog.step === 'pick' ? renderPicker() : renderForm()); }
++	}
++
++	function service(p, onpick) {
++		var disabled = !onpick;
++		return h('button', { class: 'service', disabled: disabled, onclick: onpick }, mono(p.name), h('div', { class: 't' }, h('div', { class: 'n', text: p.name }), h('div', { class: 'e', text: p.sub || '' })));
++	}
++
++	function renderPicker() {
++		var needle = (dialog.filter || '').toLowerCase();
++		function match(x) { return !needle || (x.name + ' ' + x.id + ' ' + (x.sub || '')).toLowerCase().indexOf(needle) >= 0; }
++		var existing = {}; S.providers.forEach(function (p) { existing[p.id] = true; });
++		var filter = h('input', { type: 'text', placeholder: 'Filter services', value: dialog.filter || '', oninput: function (e) { dialog.filter = e.target.value; var pos = e.target.selectionStart; render(); var f = document.querySelector('.dialog input[type=text]'); if (f) { f.focus(); f.setSelectionRange(pos, pos); } } });
++		var body = h('div', null);
++		var sub = S.presets.builtin.filter(function (x) { return x.oauth; }).map(function (x) { return { id: x.id, name: x.name, sub: (x.loginLabel || 'Subscription') + ' \\u00b7 coming next' }; }).filter(match);
++		if (sub.length) {
++			body.appendChild(h('div', { class: 'group', text: 'Sign in with a subscription' }));
++			var g1 = h('div', { class: 'grid' }); sub.forEach(function (x) { g1.appendChild(service(x, null)); }); body.appendChild(g1);
++		}
++		body.appendChild(h('div', { class: 'group', text: 'Connect with an API key' }));
++		var g2 = h('div', { class: 'grid' });
++		var custom = { id: 'custom', name: 'Custom endpoint', sub: 'Any OpenAI- or Anthropic-compatible URL' };
++		if (match(custom)) { g2.appendChild(service(custom, function () { dialog = { step: 'form', preset: { custom: true } }; render(); })); }
++		S.presets.builtin.filter(function (x) { return x.apiKey; }).map(function (x) { return { id: x.id, name: x.name, sub: 'Built in', builtin: true }; }).concat(S.presets.extra.map(function (x) { return { id: x.id, name: x.name, sub: host(x.baseUrl), extra: x }; })).filter(match).forEach(function (x) {
++			if (x.builtin && existing[x.id]) { g2.appendChild(service({ id: x.id, name: x.name, sub: 'Already added' }, null)); return; }
++			g2.appendChild(service(x, function () { dialog = { step: 'form', preset: x }; render(); }));
++		});
++		body.appendChild(g2);
++		return h('div', { class: 'overlay' }, h('div', { class: 'dialog', role: 'dialog', 'aria-label': 'Add AI provider' },
++			h('div', { class: 'row-between' }, h('h2', { text: 'Add AI provider' }), h('button', { class: 'btn', text: 'Cancel', onclick: function () { dialog = null; render(); } })),
++			h('div', { class: 'field' }, filter), body));
++	}
++
++	function renderForm() {
++		var ed = dialog.editing, pr = dialog.preset;
++		var isBuiltin = ed ? ed.kind === 'builtin' : !!(pr && pr.builtin);
++		var kind = ed ? ed.kind : (pr && pr.extra ? pr.extra.kind : (isBuiltin ? 'builtin' : 'openai-compatible'));
++		var name = h('input', { type: 'text', value: ed ? ed.name : (pr && !pr.custom ? pr.name : ''), placeholder: 'Display name' });
++		var url = h('input', { type: 'url', value: ed ? (ed.baseUrl || '') : (pr && pr.extra ? pr.extra.baseUrl : ''), placeholder: 'https://api.example.com/v1' });
++		var protocol = h('select', null, h('option', { value: 'openai-compatible', text: 'OpenAI-compatible' }), h('option', { value: 'anthropic-compatible', text: 'Anthropic-compatible' }));
++		protocol.value = kind === 'anthropic-compatible' ? 'anthropic-compatible' : 'openai-compatible';
++		var key = h('input', { type: 'password', autocomplete: 'off', placeholder: (ed && ed.hasKey) ? 'Key saved \\u2014 leave empty to keep it' : 'API key (optional for local servers)' });
++		var removeKey = h('input', { type: 'checkbox' });
++		var models = h('textarea', { placeholder: 'One model ID per line' });
++		models.value = ed ? ed.models.map(function (m) { return m.id; }).join('\\n') : '';
++		var status = h('div', { class: 'status' });
++		var fetchBtn = h('button', { class: 'btn', text: 'Fetch models', onclick: function () {
++			status.className = 'status'; status.textContent = 'Asking the service\\u2026'; var id = ++discoverSeq;
++			post({ type: 'discover', requestId: id, request: { kind: protocol.value, baseUrl: url.value, apiKey: key.value || undefined, providerId: ed ? ed.id : undefined } });
++			window.__piDiscover = function (r) {
++				if (r.requestId !== id) { return; }
++				if (r.ok) { var existing = models.value.split('\\n').map(function (x) { return x.trim(); }).filter(Boolean); models.value = Array.from(new Set(existing.concat(r.models))).join('\\n'); status.className = 'status ok'; status.textContent = 'Found ' + r.models.length + ' models.'; }
++				else { status.className = 'status err'; status.textContent = r.error; }
++			};
++		} });
++
++		function field(label, control, hint) { return h('div', { class: 'field' }, h('label', { text: label }), control, hint ? h('div', { class: 'hint', text: hint }) : null); }
++		var form = h('div', null,
++			field('Name', name),
++			isBuiltin ? null : field('Base URL', url, 'The address that serves the API, usually ending in /v1.'),
++			(isBuiltin || (pr && pr.extra)) ? null : field('Protocol', protocol),
++			field('API key', key, (ed && ed.hasKey) ? 'A key is stored in your keychain.' : 'Stored in your operating system keychain. Never shown again.'),
++			(ed && ed.hasKey) ? h('label', { class: 'inline' }, removeKey, ' Remove the saved key') : null,
++			isBuiltin ? h('p', { class: 'hint', text: 'Models for built-in providers come from Pi automatically.' }) : h('div', { class: 'field' }, h('label', { text: 'Models' }), models, h('div', { class: 'inline mt' }, fetchBtn), status));
++
++		var save = h('button', { class: 'btn primary', text: ed ? 'Save changes' : 'Add provider', onclick: function () {
++			var cfgName = name.value.trim();
++			if (!cfgName) { name.focus(); return; }
++			if (!isBuiltin && !/^https?:\\/\\//i.test(url.value.trim())) { url.focus(); status.className = 'status err'; status.textContent = 'Enter a base URL starting with http:// or https://'; return; }
++			var ids = models.value.split('\\n').map(function (x) { return x.trim(); }).filter(Boolean);
++			if (!isBuiltin && !ids.length) { status.className = 'status err'; status.textContent = 'Add at least one model ID (or use Fetch models).'; return; }
++			var id = ed ? ed.id : (isBuiltin ? pr.id : 'custom-' + cfgName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Math.random().toString(36).slice(2, 6));
++			var apiKey = removeKey.checked ? null : (key.value ? key.value : undefined);
++			post({ type: 'save', apiKey: apiKey, config: { id: id, name: cfgName, kind: isBuiltin ? 'builtin' : protocol.value, enabled: ed ? ed.enabled : true, baseUrl: isBuiltin ? undefined : url.value.trim(), models: isBuiltin ? [] : ids.map(function (m) { var old = ed && ed.models.filter(function (o) { return o.id === m; })[0]; return old || { id: m }; }) } });
++			dialog = null;
++		} });
++		return h('div', { class: 'overlay' }, h('div', { class: 'dialog', role: 'dialog', 'aria-label': ed ? 'Edit provider' : 'Add provider' },
++			h('div', { class: 'row-between' }, h('h2', { text: ed ? 'Edit ' + ed.name : 'Add ' + ((pr && !pr.custom) ? pr.name : 'custom endpoint') }), h('button', { class: 'btn', text: 'Cancel', onclick: function () { dialog = null; render(); } })),
++			form, h('div', { class: 'actions' }, save)));
++	}
++
++	window.addEventListener('message', function (event) {
++		var m = event.data;
++		if (m.type === 'state') { S = m.state; render(); }
++		else if (m.type === 'discoverResult' && window.__piDiscover) { window.__piDiscover(m); }
++	});
++	document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && dialog) { dialog = null; render(); } });
++	render();
++	post({ type: 'ready' });
++})();
++</script>
++</body>
++</html>`;
++}
+diff --git a/src/vs/workbench/contrib/piProviders/browser/piProvidersService.ts b/src/vs/workbench/contrib/piProviders/browser/piProvidersService.ts
+new file mode 100644
+index 00000000..fdaea72c
+--- /dev/null
++++ b/src/vs/workbench/contrib/piProviders/browser/piProvidersService.ts
+@@ -0,0 +1,208 @@
++/*---------------------------------------------------------------------------------------------
++ *  Copyright (c) Microsoft Corporation. All rights reserved.
++ *  Licensed under the MIT License. See License.txt in the project root for license information.
++ *--------------------------------------------------------------------------------------------*/
++
++import { RunOnceScheduler } from '../../../../base/common/async.js';
++import { CancellationToken } from '../../../../base/common/cancellation.js';
++import { Emitter, Event } from '../../../../base/common/event.js';
++import { Disposable } from '../../../../base/common/lifecycle.js';
++import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
++import { PI_PROVIDERS_RESOURCE, parsePiProvidersPayload, type IPiProviderConfig, type IPiProviderPublic, type PiProviderKind } from '../../../../platform/agentHost/common/piProviders.js';
++import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
++import { ILogService } from '../../../../platform/log/common/log.js';
++import { asJson, IRequestService, isSuccess } from '../../../../platform/request/common/request.js';
++import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
++import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
++
++const STORAGE_KEY = 'pi.providers.v1';
++const secretKey = (providerId: string) => `pi.provider.${providerId}.apiKey`;
++const PUSH_DEBOUNCE_MS = 400;
++const DISCOVERY_TIMEOUT_MS = 15_000;
++const MAX_PUSH_RETRIES = 6;
++const PUSH_RETRY_MS = 2000;
++
++export const IPiProvidersService = createDecorator<IPiProvidersService>('piProvidersService');
++
++export interface IPiProvidersState {
++	readonly providers: readonly IPiProviderPublic[];
++	readonly defaultModel: string | undefined;
++}
++
++export interface IPiDiscoverRequest {
++	readonly kind: PiProviderKind;
++	readonly baseUrl: string;
++	readonly headers?: Readonly<Record<string, string>>;
++	/** A key typed in the form; takes precedence over a stored one. */
++	readonly apiKey?: string;
++	/** Reuse the stored key of this provider when no key was typed. */
++	readonly providerId?: string;
++}
++
++export type PiDiscoverResult = { readonly ok: true; readonly models: readonly string[] } | { readonly ok: false; readonly error: string };
++
++export interface IPiProvidersService {
++	readonly _serviceBrand: undefined;
++	readonly onDidChange: Event<void>;
++	/** Configuration plus a `hasKey` flag per provider. Never contains a key. */
++	getState(): Promise<IPiProvidersState>;
++	/** `apiKey`: a string sets it, `null` removes it, `undefined` keeps the stored one. */
++	saveProvider(config: IPiProviderConfig, apiKey: string | null | undefined): Promise<void>;
++	removeProvider(id: string): Promise<void>;
++	setEnabled(id: string, enabled: boolean): Promise<void>;
++	setDefaultModel(model: string | undefined): Promise<void>;
++	discoverModels(request: IPiDiscoverRequest): Promise<PiDiscoverResult>;
++	/** Push the current providers, keys included, to the agent host (in memory only). */
++	pushToHost(): Promise<void>;
++}
++
++export class PiProvidersService extends Disposable implements IPiProvidersService {
++
++	declare readonly _serviceBrand: undefined;
++
++	private readonly _onDidChange = this._register(new Emitter<void>());
++	readonly onDidChange = this._onDidChange.event;
++
++	private readonly _pushScheduler = this._register(new RunOnceScheduler(() => void this.pushToHost(), PUSH_DEBOUNCE_MS));
++	private _pushRetries = 0;
++
++	constructor(
++		@IStorageService private readonly _storageService: IStorageService,
++		@ISecretStorageService private readonly _secretStorageService: ISecretStorageService,
++		@IAgentHostService private readonly _agentHostService: IAgentHostService,
++		@IRequestService private readonly _requestService: IRequestService,
++		@ILogService private readonly _logService: ILogService,
++	) {
++		super();
++		// Another window edited the providers, or a key changed: re-sync.
++		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, STORAGE_KEY, this._store)(() => this._changed()));
++		this._register(this._secretStorageService.onDidChangeSecret(key => {
++			if (key.startsWith('pi.provider.')) {
++				this._changed();
++			}
++		}));
++		// The host forgets everything on restart; send it again.
++		this._register(this._agentHostService.onAgentHostStart(() => this._pushScheduler.schedule(0)));
++		this._pushScheduler.schedule(0);
++	}
++
++	private _changed(): void {
++		this._onDidChange.fire();
++		this._pushScheduler.schedule();
++	}
++
++	private _read(): { providers: IPiProviderConfig[]; defaultModel: string | undefined } {
++		const text = this._storageService.get(STORAGE_KEY, StorageScope.APPLICATION);
++		if (!text) {
++			return { providers: [], defaultModel: undefined };
++		}
++		// Reuse the host's validator so a hand-edited or corrupt value cannot poison the payload.
++		const parsed = parsePiProvidersPayload(text);
++		return { providers: parsed.providers.map(({ apiKey: _ignored, ...config }) => config), defaultModel: parsed.defaultModel };
++	}
++
++	private _write(state: { providers: readonly IPiProviderConfig[]; defaultModel: string | undefined }): void {
++		this._storageService.store(STORAGE_KEY, JSON.stringify(state), StorageScope.APPLICATION, StorageTarget.MACHINE);
++	}
++
++	async getState(): Promise<IPiProvidersState> {
++		const state = this._read();
++		const providers = await Promise.all(state.providers.map(async config => ({ ...config, hasKey: !!(await this._secretStorageService.get(secretKey(config.id))) })));
++		return { providers, defaultModel: state.defaultModel };
++	}
++
++	async saveProvider(config: IPiProviderConfig, apiKey: string | null | undefined): Promise<void> {
++		if (typeof apiKey === 'string' && apiKey) {
++			await this._secretStorageService.set(secretKey(config.id), apiKey);
++		} else if (apiKey === null) {
++			await this._secretStorageService.delete(secretKey(config.id));
++		}
++		const state = this._read();
++		const index = state.providers.findIndex(existing => existing.id === config.id);
++		const providers = index >= 0 ? state.providers.map((existing, i) => i === index ? config : existing) : [...state.providers, config];
++		this._write({ providers, defaultModel: state.defaultModel });
++		this._changed();
++	}
++
++	async removeProvider(id: string): Promise<void> {
++		const state = this._read();
++		await this._secretStorageService.delete(secretKey(id));
++		const defaultModel = state.defaultModel?.startsWith(`${id}/`) ? undefined : state.defaultModel;
++		this._write({ providers: state.providers.filter(existing => existing.id !== id), defaultModel });
++		this._changed();
++	}
++
++	async setEnabled(id: string, enabled: boolean): Promise<void> {
++		const state = this._read();
++		this._write({ providers: state.providers.map(existing => existing.id === id ? { ...existing, enabled } : existing), defaultModel: state.defaultModel });
++		this._changed();
++	}
++
++	async setDefaultModel(model: string | undefined): Promise<void> {
++		const state = this._read();
++		this._write({ providers: state.providers, defaultModel: model });
++		this._changed();
++	}
++
++	async pushToHost(): Promise<void> {
++		try {
++			const state = this._read();
++			const providers = await Promise.all(state.providers.map(async config => ({ ...config, apiKey: await this._secretStorageService.get(secretKey(config.id)) })));
++			const result = await this._agentHostService.authenticate({ resource: PI_PROVIDERS_RESOURCE, token: JSON.stringify({ providers, defaultModel: state.defaultModel }) });
++			this._pushRetries = 0;
++			this._logService.info(`[Pi providers] pushed ${providers.length} providers to the agent host (accepted: ${result.authenticated})`);
++		} catch (error) {
++			// The host may not be connected yet (startup race); retry a few times, and again on host start.
++			this._logService.warn(`[Pi providers] push to agent host failed: ${error instanceof Error ? error.message : String(error)}`);
++			if (this._pushRetries++ < MAX_PUSH_RETRIES) {
++				this._pushScheduler.schedule(PUSH_RETRY_MS);
++			}
++		}
++	}
++
++	async discoverModels(request: IPiDiscoverRequest): Promise<PiDiscoverResult> {
++		const baseUrl = request.baseUrl.trim().replace(/\/+$/, '');
++		try {
++			new URL(baseUrl);
++		} catch {
++			return { ok: false, error: 'Enter a valid base URL first.' };
++		}
++		const apiKey = request.apiKey || (request.providerId ? await this._secretStorageService.get(secretKey(request.providerId)) : undefined);
++		const headers: Record<string, string> = { Accept: 'application/json', ...request.headers };
++		if (apiKey) {
++			if (request.kind === 'anthropic-compatible') {
++				headers['x-api-key'] = apiKey;
++				headers['anthropic-version'] = '2023-06-01';
++			} else {
++				headers['Authorization'] = `Bearer ${apiKey}`;
++			}
++		}
++		// Anthropic-style endpoints serve /v1/models; OpenAI-style bases usually already end in /v1.
++		const candidates = request.kind === 'anthropic-compatible' && !/\/v1$/.test(baseUrl) ? [`${baseUrl}/v1/models`, `${baseUrl}/models`] : [`${baseUrl}/models`];
++		let lastError = 'The service did not return a model list.';
++		for (const url of candidates) {
++			try {
++				const context = await this._requestService.request({ type: 'GET', url, headers, timeout: DISCOVERY_TIMEOUT_MS, callSite: 'piProviders.discoverModels' }, CancellationToken.None);
++				if (!isSuccess(context)) {
++					const status = context.res.statusCode;
++					lastError = status === 401 || status === 403 ? 'The service rejected the key (or needs one). Check it and try again.'
++						: status === 404 ? 'This endpoint has no model list. Enter the model IDs by hand.'
++							: `The service answered with an error (${status}).`;
++					continue;
++				}
++				const body = await asJson<{ data?: { id?: unknown }[]; models?: ({ id?: unknown; name?: unknown } | string)[] }>(context);
++				const entries = body?.data ?? body?.models ?? [];
++				const ids = entries
++					.map(entry => typeof entry === 'string' ? entry : typeof entry?.id === 'string' ? entry.id : typeof (entry as { name?: unknown })?.name === 'string' ? (entry as { name: string }).name : undefined)
++					.filter((id): id is string => !!id);
++				if (ids.length) {
++					return { ok: true, models: [...new Set(ids)].sort().slice(0, 2000) };
++				}
++				lastError = 'The service returned an empty model list.';
++			} catch (error) {
++				lastError = `Could not reach the service: ${error instanceof Error ? error.message : String(error)}`;
++			}
++		}
++		return { ok: false, error: lastError };
++	}
++}
+diff --git a/src/vs/workbench/workbench.desktop.main.ts b/src/vs/workbench/workbench.desktop.main.ts
+index 9bc4dbca..71772a6e 100644
+--- a/src/vs/workbench/workbench.desktop.main.ts
++++ b/src/vs/workbench/workbench.desktop.main.ts
+@@ -95,2 +95,3 @@ import '../platform/webContentExtractor/electron-browser/webContentExtractorServ
+ import './services/agentHost/electron-browser/agentHostService.js';
++import './contrib/piProviders/browser/piProviders.contribution.js';
+ import '../platform/agentHost/electron-browser/remoteAgentHostService.js';

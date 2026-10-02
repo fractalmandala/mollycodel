@@ -1,0 +1,19 @@
+diff --git a/src/vs/sessions/browser/sessionsSetUpService.ts b/src/vs/sessions/browser/sessionsSetUpService.ts
+index 0da18c97..8cba5eec 100644
+--- a/src/vs/sessions/browser/sessionsSetUpService.ts
++++ b/src/vs/sessions/browser/sessionsSetUpService.ts
+@@ -63,2 +63,6 @@ export interface ISessionsSetUpService {
+ function shouldSkipSessionsWelcome(environmentService: IWorkbenchEnvironmentService): boolean {
++	// Agents window never forces a GitHub sign-in; providers gate themselves.
++	if (!isWeb) {
++		return true;
++	}
+ 	if (environmentService.enableSmokeTestDriver) {
+diff --git a/src/vs/sessions/sessions.common.main.ts b/src/vs/sessions/sessions.common.main.ts
+index d7d5a085..78578d24 100644
+--- a/src/vs/sessions/sessions.common.main.ts
++++ b/src/vs/sessions/sessions.common.main.ts
+@@ -474,3 +474,2 @@ import './contrib/providers/agentHost/browser/agentHostForkActions.js';
+ import './contrib/chat/browser/customizationsDebugLog.contribution.js';
+-import './contrib/providers/copilotChatSessions/browser/copilotChatSessions.contribution.js';
+ import './contrib/sessions/browser/sessions.contribution.js';

@@ -5,13 +5,16 @@
 # to run with Bash: "C:\Program Files\Git\bin\bash.exe" ./dev/build.sh
 ###
 
-export APP_NAME="VSCodium"
-export ASSETS_REPOSITORY="VSCodium/vscodium"
-export BINARY_NAME="codium"
+export APP_NAME="mollycodel"
+export ASSETS_REPOSITORY="fractalmandala/mollycodel"
+export BINARY_NAME="mollycodel"
 export CI_BUILD="no"
-export GH_REPO_PATH="VSCodium/vscodium"
-export ORG_NAME="VSCodium"
+export GH_REPO_PATH="fractalmandala/mollycodel"
+export ORG_NAME="fractalmandala"
 export SHOULD_BUILD="yes"
+# A desktop app does not need the remote-extension-host server bundles (saves ~10 minutes).
+export SHOULD_BUILD_REH="no"
+export SHOULD_BUILD_REH_WEB="no"
 export SKIP_ASSETS="yes"
 export SKIP_BUILD="no"
 export SKIP_SOURCE="no"

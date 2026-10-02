@@ -377,3 +377,13 @@ These were read at catalog level only; they are inspiration, not specification.
   --skipLibCheck` in `vscode/` (about 15 seconds).
 - A test instance must be quit by its profile dir, never by app name, so a
   separately running installed VSCodium is not touched.
+
+## Phase 4: Pi chats survive restarts
+
+**Where it is stored.** Each Pi chat lives in the host's per-session SQLite database (`ISessionDataService.openDatabase`), as two versioned JSON values: `pi.meta.<chatId>` (title, model, working directory, times; read when sessions are listed) and `pi.conversation.<chatId>` (the Pi messages plus the host's turn ids). The chat id is returned from `createChat` as `providerData`, which the host persists and hands back on restore. Nothing is written outside the session database.
+
+**Restore.** The host calls `getChatMetadata` (answered from the small record), then `materializeChat` (loads the full conversation), then `getMessages`, which rebuilds the visible turns (text, reasoning and tool calls, with results). On the next prompt the Pi `Agent` is seeded with the saved messages, so the model continues with its memory intact.
+
+**Save points.** After every completed message and at the end of every turn, serialized and coalesced; `shutdown()` waits for pending saves. A conversation above 40 MB is not overwritten (the last good copy stays). A tool call with no recorded result (app closed mid-call) is shown as failed, not dropped.
+
+**Verified.** `node dev/test-pi-persistence.mjs` runs the real `PiAgent` against a fake local model server and an in-memory session database, with a real tool call, then simulates a restart with a new agent instance: 14 checks (metadata, history, turn ids, tool steps, and that the model receives the earlier conversation).

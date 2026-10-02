@@ -1,4 +1,18 @@
 {
+  "nameShort": "mollycodel",
+  "nameLong": "mollycodel",
+  "applicationName": "mollycodel",
+  "dataFolderName": ".mollycodel",
+  "linuxIconName": "mollycodel",
+  "urlProtocol": "mollycodel",
+  "darwinBundleIdentifier": "com.fractalmandala.mollycodel",
+  "serverApplicationName": "mollycodel-server",
+  "serverDataFolderName": ".mollycodel-server",
+  "tunnelApplicationName": "mollycodel-tunnel",
+  "reportIssueUrl": "https://github.com/fractalmandala/mollycodel/issues/new",
+  "licenseUrl": "https://github.com/fractalmandala/mollycodel/blob/main/LICENSE",
+  "downloadUrl": "https://github.com/fractalmandala/mollycodel/releases",
+  "updateUrl": "",
   "extensionAllowedBadgeProviders": [
     "api.bintray.com",
     "api.travis-ci.com",

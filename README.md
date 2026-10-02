@@ -1,218 +1,87 @@
-<div id="vscodium-logo" align="center">
-   <br />
-   <img src="./icons/stable/codium_cnl.svg" alt="VSCodium Logo" width="200"/>
-   <h1>VSCodium</h1>
-   <h3>Free/Libre Open Source Software Binaries of Visual Studio Code</h3>
-</div>
+<p align="center">
+  <img src="./mollycodel-wallpaper.png" alt="mollycodel" width="100%">
+</p>
 
-<div id="badges" align="center">
+<p align="center">
+  <strong>A code editor with a second window for AI agents.<br>Your providers. Your keys. Your machine.</strong>
+</p>
 
-[![current release](https://img.shields.io/github/release/vscodium/vscodium.svg)](https://github.com/vscodium/vscodium/releases)
-[![license](https://img.shields.io/github/license/VSCodium/vscodium.svg)](https://github.com/VSCodium/vscodium/blob/master/LICENSE)
-[![Gitter](https://img.shields.io/gitter/room/vscodium/vscodium.svg)](https://gitter.im/VSCodium/Lobby)
-[![codium](https://snapcraft.io//codium/badge.svg)](https://snapcraft.io/codium)
-[![codium](https://snapcraft.io//codium/trending.svg?name=0)](https://snapcraft.io/codium)
+---
 
-</div>
+mollycodel is a desktop editor built from [Visual Studio Code](https://github.com/microsoft/vscode)'s MIT-licensed source through [VSCodium](https://github.com/VSCodium/vscodium)'s build process, with an **Agents Window** and two coding agents wired in: **Pi** and **OpenCode**. There is no account to create and no GitHub or Copilot sign-in. You bring your own AI providers.
 
-**This is not a fork. This is a repository of scripts to automatically build [Microsoft's `vscode` repository](https://github.com/microsoft/vscode) into freely-licensed binaries with a community-driven default configuration.**
+## What's in it
 
-## Table of Contents
+- **An Agents Window.** A full second window (alongside the editor) with a session list across projects and a composer. VS Code ships this layer; mollycodel makes it usable without a Copilot account.
+- **Pi, a multi-provider agent.** Runs on [`pi-ai`](https://www.npmjs.com/package/@earendil-works/pi-ai) and [`pi-agent-core`](https://www.npmjs.com/package/@earendil-works/pi-agent-core). It reads and lists files, writes and edits files, and runs shell commands, and **asks for approval before it writes or runs anything**. Reads of `.env` files and `~/.ssh`, `~/.aws` and `~/.gnupg` are blocked outright.
+- **A provider manager.** Run **`Pi: Manage Providers`** from the Command Palette. Add any of Pi's 40+ built-in providers, or a custom OpenAI- or Anthropic-compatible endpoint, with live model discovery. **API keys are stored in your operating system keychain**, are never shown again after you save them, and are sent to the agent process in memory only.
+- **OpenCode, with your own setup.** If you have [OpenCode](https://opencode.ai) installed, mollycodel runs it as a second agent on a private local server (127.0.0.1, random port, random password). OpenCode reads *your* configuration, so your providers, agents, skills and MCP servers apply as they are. mollycodel never touches OpenCode's keys, and OpenCode is not bundled.
+- **Everything VSCodium gives you:** Microsoft's telemetry and tracking endpoints removed, and extensions from [Open VSX](https://open-vsx.org/).
 
-- [Download/Install](#download-install)
-   - [Install with Brew](#install-with-brew)
-   - [Install with Windows Package Manager (WinGet)](#install-with-winget)
-   - [Install with Chocolatey](#install-with-choco)
-   - [Install with Scoop](#install-with-scoop)
-   - [Install with snap](#install-with-snap)
-   - [Install with Package Manager](#install-with-package-manager)
-   - [Install on Arch Linux](#install-on-arch-linux)
-   - [Flatpak Option](#flatpak)
-- [Build](#build)
-- [Why Does This Exist](#why)
-- [More Info](#more-info)
-- [Supported Platforms](#supported-platforms)
-- [Previously Supported Platforms](#previously-supported-platforms)
+## Status
 
-## <a id="download-install"></a>Download/Install
+This is an early, working build. Being straightforward about what it is and isn't:
 
-:tada: :tada:
-Download latest release here:
-[stable](https://github.com/VSCodium/vscodium/releases) or
-[insiders](https://github.com/VSCodium/vscodium-insiders/releases)
-:tada: :tada:
+- **Platform:** built and tested on **macOS, Apple Silicon (arm64)** only. Other platforms are not built.
+- **Not notarized.** It is signed ad-hoc, because notarization needs a paid Apple Developer account. See [Install](#install).
+- **Known gaps:** subscription logins (Claude Pro/Max, ChatGPT, Grok and others) are listed in the provider dialog but not enabled yet; choosing an OpenCode *agent* such as `plan` from the interface is not wired up yet.
+- **Moving a chat** between the editor's side panel and the Agents Window uses VS Code's built-in handoff. It has not yet been verified end to end with these agents.
 
-[More info / helpful tips are here.](https://github.com/VSCodium/vscodium/blob/master/docs/index.md)
+## Install
 
+No release is published yet, so build the `.dmg` yourself (see [Build from source](#build-from-source)); prebuilt installers will appear on the [Releases](https://github.com/fractalmandala/mollycodel/releases) page. Open the `.dmg` and drag **mollycodel** onto **Applications**.
 
-#### <a id="install-with-brew"></a>Install with Brew (Mac)
-
-If you are on a Mac and have [Homebrew](https://brew.sh/) installed:
-```bash
-# stable
-brew install --cask vscodium
-
-# insiders
-brew install --cask vscodium@insiders
-```
-
-#### <a id="install-with-winget"></a>Install with Windows Package Manager (WinGet)
-
-If you use Windows and have [Windows Package Manager](https://github.com/microsoft/winget-cli) installed:
-```cmd
-:: stable
-winget install -e --id VSCodium.VSCodium
-
-:: insider
-winget install -e --id VSCodium.VSCodium.Insiders
-```
-
-#### <a id="install-with-choco"></a>Install with Chocolatey (Windows)
-
-If you use Windows and have [Chocolatey](https://chocolatey.org) installed (thanks to [@Thilas](https://github.com/Thilas)):
-```cmd
-:: stable
-choco install vscodium
-
-:: insider
-choco install vscodium-insiders
-```
-
-#### <a id="install-with-scoop"></a>Install with Scoop (Windows)
-
-If you use Windows and have [Scoop](https://scoop.sh) installed:
-```bash
-scoop bucket add extras
-scoop install vscodium
-```
-
-#### <a id="install-with-snap"></a>Install with snap (GNU/Linux)
-
-VSCodium is available in the [Snap Store](https://snapcraft.io/) as [Codium](https://snapcraft.io/codium), thanks to the help of the [Snapcrafters](https://github.com/snapcrafters/codium) community.
-If your GNU/Linux distribution has support for [snaps](https://snapcraft.io/docs/installing-snapd):
+A copy that reaches your Mac by download or AirDrop is quarantined by macOS because it isn't notarized. Right-click the app and choose **Open** once, or run:
 
 ```bash
-snap install codium --classic
+xattr -cr /Applications/mollycodel.app
 ```
 
-#### <a id="install-with-package-manager"></a>Install with Package Manager (GNU/Linux)
+mollycodel is a separate app from any VSCodium or VS Code you already have: its own bundle ID (`com.fractalmandala.mollycodel`), its own settings and its own extensions folder (`~/.mollycodel`). It starts with a clean profile. On first launch macOS may ask to let it use **"mollycodel Safe Storage"** in your keychain; allow it, since that is where provider keys go. Automatic updates are turned off.
 
-You can always install using the downloads (deb, rpm, tar) on the releases page for [stable](https://github.com/VSCodium/vscodium/releases) or [insiders](https://github.com/VSCodium/vscodium-insiders/releases), but you can also install using your favorite package manager and get automatic updates.
+## Build from source
 
-[@paulcarroty](https://github.com/paulcarroty) has set up a repository with instructions for `apt`, `dnf` and `zypper` [here](https://gitlab.com/paulcarroty/vscodium-deb-rpm-repo).
-
-Any issues installing VSCodium using your package manager should be directed to that repository's issue tracker.
-
-#### <a id="install-on-arch-linux"></a>Install on Arch Linux
-
-VSCodium is available in [AUR](https://wiki.archlinux.org/index.php/Arch_User_Repository), maintained by [@binex-dsk](https://github.com/binex-dsk) as package [vscodium-bin](https://aur.archlinux.org/packages/vscodium-bin/) (stable) and as [vscodium-insiders-bin](https://aur.archlinux.org/packages/vscodium-insiders-bin).
-
-If you want to save disk space by having VSCodium use the Electron system-wide, you also have [vscodium-electron](https://aur.archlinux.org/packages/vscodium-electron),
-maintained by [@m00nw4tch3r](https://aur.archlinux.org/account/m00nw4tch3r).
-
-An alternative package [vscodium-git](https://aur.archlinux.org/packages/vscodium-git/), maintained by [@cedricroijakkers](https://github.com/cedricroijakkers), is also available should you wish to compile from source yourself.
-
-#### <a id="flatpak"></a>Flatpak Option (GNU/Linux)
-
-VSCodium is available as a Flatpak app [here](https://flathub.org/apps/details/com.vscodium.codium) and the build repo is [here](https://github.com/flathub/com.vscodium.codium).
-If your distribution has support for [flatpak](https://flathub.org), and you have enabled the [flathub repo](https://flatpak.org/setup/):
+You need macOS on Apple Silicon, the Xcode command line tools, [Node.js](https://nodejs.org/) 24 (see `.nvmrc`), `jq`, `git`, `python3`, a Rust toolchain, and about 20 GB of free disk.
 
 ```bash
-flatpak install flathub com.vscodium.codium
-flatpak run com.vscodium.codium
+./dev/build.sh          # fetch Microsoft's source at the pinned tag, apply patches, build the app
+./dev/make-dmg.sh       # seal the app and package it as a drag-to-Applications .dmg
 ```
 
-## <a id="build"></a>Build
+The first build takes a while (about 20–30 minutes). The app lands in `VSCode-darwin-arm64/mollycodel.app` and the installer in `assets/`. After the first fetch, `./dev/build.sh -s` rebuilds from the existing source tree.
 
-Build instructions can be found [here](https://github.com/VSCodium/vscodium/blob/master/docs/howto-build.md)
+## How it fits together
 
-## <a id="why"></a>Why Does This Exist
+The editor source is not stored in this repository. `dev/build.sh` fetches Microsoft's `vscode` at the tag pinned in `upstream/stable.json`, applies VSCodium's patches, then applies ours from `patches/user/`:
 
-This repository contains build files to generate free release binaries of Microsoft's Visual Studio Code. When we speak of "free software", we're talking about freedom, not price.
+| Patch | What it does |
+| --- | --- |
+| `10-sessions-sever-github` | Agents Window opens without a GitHub sign-in; Copilot provider unregistered |
+| `20-agenthost-pi-agent` | The Pi and OpenCode agents, provider runtime, tools and approvals |
+| `30-chat-enable-ai-features` | AI features enabled by default |
+| `40-deps-pi` | Runtime dependencies for Pi (additive lockfile edit) |
+| `50-pi-providers-ui` | The providers editor, keychain storage, model picker wiring |
 
-Microsoft's releases of Visual Studio Code are licensed under [this not-FLOSS license](https://code.visualstudio.com/license) and contain telemetry/tracking. According to [this comment](https://github.com/Microsoft/vscode/issues/60#issuecomment-161792005) from a Visual Studio Code maintainer:
+`dev/make-user-patch.py` regenerates a patch containing only our own change. The design, the decisions behind it and the lessons learned are written up in [`docs/agents-window/SPEC.md`](./docs/agents-window/SPEC.md).
 
-> When we [Microsoft] build Visual Studio Code, we do exactly this. We clone the vscode repository, we lay down a customized product.json that has Microsoft specific functionality (telemetry, gallery, logo, etc.), and then produce a build that we release under our license.
->
-> When you clone and build from the vscode repo, none of these endpoints are configured in the default product.json. Therefore, you generate a "clean" build, without the Microsoft customizations, which is by default licensed under the MIT license
+## License and attribution
 
-This repo exists so that you don't have to download+build from source. The build scripts in this repo clone Microsoft's vscode repo, run the build commands, and upload the resulting binaries to [GitHub releases](https://github.com/VSCodium/vscodium/releases). __These binaries are licensed under the MIT license. Telemetry is disabled.__
+mollycodel stands on other people's open-source work and keeps their terms.
 
-If you want to build from source yourself, head over to [Microsoft's vscode repo](https://github.com/Microsoft/vscode) and follow their [instructions](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#build-and-run). This repo exists to make it easier to get the latest version of MIT-licensed Visual Studio Code.
+- **This repository** (build scripts, patches, tooling, docs) is [MIT licensed](./LICENSE). The license file carries the original notice, *Copyright (c) 2018-present The VSCodium contributors* and *Peter Squicciarini*, and that notice must stay with any copy.
+- **Visual Studio Code's source** is MIT licensed, © Microsoft Corporation. mollycodel is built from that open source with Microsoft's product configuration (telemetry, marketplace and branding endpoints) left out. It is **not Microsoft's distribution of Visual Studio Code** and is not covered by the license of Microsoft's own binaries.
+- **Components inside the app** keep their own licenses. The app includes a `ThirdPartyNotices.txt` (in `mollycodel.app/Contents/Resources/app/`).
+- **Pi** (`@earendil-works/pi-ai`, `@earendil-works/pi-agent-core`) is MIT licensed and is bundled as a runtime dependency.
+- **OpenCode** is a separate program you install yourself, under its own license. It is not bundled or redistributed; mollycodel only talks to it over local HTTP.
+- **PI-Desktop** ([vastsa/PI-Desktop](https://github.com/vastsa/PI-Desktop), LGPL-3.0) was read as a design reference. **No code from it is included.**
+- **Extensions** come from Open VSX. The Visual Studio Marketplace's [terms of use](https://aka.ms/vsmarketplace-ToU) limit it to Microsoft's own products, so it is not used here, and some extensions restrict themselves to official Visual Studio Code builds and will not work.
 
-Microsoft's build process (which we are running to build the binaries) does download additional files. Those packages downloaded during build are:
+**Trademarks and branding.** "Visual Studio Code" and "VS Code" are trademarks of Microsoft. "VSCodium", "OpenCode" and "Pi" belong to their respective projects. mollycodel is not affiliated with, sponsored by or endorsed by Microsoft, the VSCodium project, the OpenCode project or the Pi project. The mollycodel name, mascot icon and wallpaper are this project's branding; the MIT license covers the source files in this repository, not these artwork assets.
 
-- Pre-built extensions from the GitHub:
-   - [ms-vscode.js-debug-companion](https://github.com/microsoft/vscode-js-debug-companion)
-   - [ms-vscode.js-debug](https://github.com/microsoft/vscode-js-debug)
-   - [ms-vscode.vscode-js-profile-table](https://github.com/microsoft/vscode-js-profile-visualizer)
-- From [Electron releases](https://github.com/electron/electron/releases) (using [gulp-atom-electron](https://github.com/joaomoreno/gulp-atom-electron))
-   - electron
-   - ffmpeg
+## Thanks
 
-## <a id="more-info"></a>More Info
-
-### Documentation
-
-For more information on getting all the telemetry disabled, tips for migrating from Visual Studio Code to VSCodium and more, have a look at [the Docs page](https://github.com/VSCodium/vscodium/blob/master/docs/index.md) page.
-
-### Troubleshooting
-
-If you have any issue, please check [the Troubleshooting page](https://github.com/VSCodium/vscodium/blob/master/docs/troubleshooting.md) or the existing issues.
-
-### Extensions and the Marketplace
-
-According to the Visual Studio Marketplace [Terms of Use](https://aka.ms/vsmarketplace-ToU), _you may only install and use Marketplace Offerings with Visual Studio Products and Services._ For this reason, VSCodium uses [open-vsx.org](https://open-vsx.org/), an open source registry for Visual Studio Code extensions. See the [Extensions + Marketplace](https://github.com/VSCodium/vscodium/blob/master/docs/index.md#extensions-marketplace) section on the Docs page for more details.
-
-Please note that some Visual Studio Code extensions have licenses that restrict their use to the official Visual Studio Code builds and therefore do not work with VSCodium. See [this note](https://github.com/VSCodium/vscodium/blob/master/docs/extensions.md#proprietary-debugging-tools) on the Docs page for what's been found so far and possible workarounds.
-
-### How are the VSCodium binaries built?
-
-If you would like to see the commands we run to build `vscode` into VSCodium binaries, have a look at the workflow files in `.github/workflows` for Windows, GNU/Linux and macOS. These build files call all the other scripts in the repo. If you find something that doesn't make sense, feel free to ask about it [on Gitter](https://gitter.im/VSCodium/Lobby).
-
-The builds are run every day, but exit early if there isn't a new release from Microsoft.
-
-## <a id="supported-platforms"></a>Supported Platforms
-
-The minimal version is limited by the core component Electron, you may want to check its [platform prerequisites](https://www.electronjs.org/docs/latest/development/build-instructions-gn#platform-prerequisites).
-
-- [x] macOS (`zip`, `dmg`) macOS 12 or newer x64
-- [x] macOS (`zip`, `dmg`) macOS 12 or newer arm64
-- [x] GNU/Linux x64 (`deb`, `rpm`, `AppImage`, `snap`, `tar.gz`)
-- [x] GNU/Linux arm64 (`deb`, `rpm`, `snap`, `tar.gz`)
-- [x] GNU/Linux riscv64 (`tar.gz`)
-- [x] GNU/Linux loong64 (`tar.gz`)
-- [x] GNU/Linux ppc64le (`tar.gz`)
-- [x] Windows 10 / Server 2012 R2 or newer x64
-- [x] Windows 10 / Server 2012 R2 or newer arm64
-
-## <a id="previously-supported-platforms"></a>Previously Supported Platforms
-
-## <a id="thanks"></a>Special thanks
-
-<table>
-   <tr>
-      <td><a href="https://github.com/jaredreich" target="_blank">@jaredreich</a></td>
-      <td>for the logo</td>
-   </tr>
-   <tr>
-      <td><a href="https://github.com/PalinuroSec" target="_blank">@PalinuroSec</a></td>
-      <td>for CDN and domain name</td>
-   </tr>
-   <tr>
-      <td><a href="https://www.macstadium.com" target="_blank"><img src="https://images.prismic.io/macstadium/66fbce64-707e-41f3-b547-241908884716_MacStadium_Logo.png?w=128&q=75" width="128" height="49" alt="MacStadium logo" /></a></td>
-      <td>for providing a Mac mini M1</td>
-   </tr>
-   <tr>
-      <td><a href="https://github.com/daiyam" target="_blank">@daiyam</a></td>
-      <td>for macOS certificate</td>
-   </tr>
-   <tr>
-      <td><a href="https://signpath.org/" target="_blank"><img src="https://avatars.githubusercontent.com/u/34448643" height="30" alt="SignPath logo" /></a></td>
-      <td>free code signing on Windows provided by <a href="https://signpath.io/" target="_blank">SignPath.io</a>, certificate by <a href="https://signpath.org/" target="_blank">SignPath Foundation</a></td>
-   </tr>
-</table>
-
-## <a id="license"></a>License
-
-[MIT](https://github.com/VSCodium/vscodium/blob/master/LICENSE)
+- The [VSCodium](https://github.com/VSCodium/vscodium) contributors, whose build process this project is built on.
+- [Microsoft and the Visual Studio Code contributors](https://github.com/microsoft/vscode).
+- The [Pi](https://github.com/earendil-works/pi) authors, for a library that made a multi-provider agent practical to embed.
+- The [OpenCode](https://opencode.ai) team.
+- The PI-Desktop author, for a clear picture of what a good provider manager looks like.

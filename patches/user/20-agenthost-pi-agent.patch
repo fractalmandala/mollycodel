@@ -1144,10 +1144,10 @@ index 00000000..5249e12a
 +}
 diff --git a/src/vs/platform/agentHost/node/pi/piAgent.ts b/src/vs/platform/agentHost/node/pi/piAgent.ts
 new file mode 100644
-index 00000000..8b037b10
+index 00000000..516c0a22
 --- /dev/null
 +++ b/src/vs/platform/agentHost/node/pi/piAgent.ts
-@@ -0,0 +1,482 @@
+@@ -0,0 +1,619 @@
 +/*---------------------------------------------------------------------------------------------
 + *  Copyright (c) Microsoft Corporation. All rights reserved.
 + *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -1164,8 +1164,10 @@ index 00000000..8b037b10
 +import type { AgentSelection, MessageAttachment, ModelSelection, ProtectedResourceMetadata } from '../../common/state/protocol/state.js';
 +import { ActionType } from '../../common/state/sessionActions.js';
 +import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type Customization, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
-+import type { AuthenticateParams, IActiveClient, IAgent, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatMetadata, IAgentChats, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentModelInfo, IAgentResolveChatConfigParams, AgentSignal } from '../../common/agent.js';
++import { resolveAgentChatContext, type AuthenticateParams, type IActiveClient, IAgent, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatMetadata, IAgentChats, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentModelInfo, IAgentResolveChatConfigParams, AgentSignal } from '../../common/agent.js';
 +import { buildPiModels, loadPiDeps, type IPiDeps, type PiModel, type PiModels } from './piProviderRuntime.js';
++import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
++import { PI_CONVERSATION_VERSION, PI_MAX_PERSISTED_BYTES, parseChatMeta, parseConversation, titleFromPrompt, toTurns, type IPiChatMeta, type IPiConversation, type PiMessage } from './piConversation.js';
 +import { createPiTools, describePiTool, type IPiToolInfo } from './piTools.js';
 +
 +type PiAgentInstance = InstanceType<IPiDeps['core']['Agent']>;
@@ -1183,8 +1185,20 @@ index 00000000..8b037b10
 +
 +interface IPiChat {
 +	readonly chat: URI;
-+	readonly startTime: number;
++	startTime: number;
 +	modifiedTime: number;
++	/** The session this chat belongs to; its database holds the saved conversation. */
++	session: URI | undefined;
++	/** Stable id of the saved conversation; it is the chat's `providerData`. */
++	chatId: string | undefined;
++	title: string | undefined;
++	/** Host turn ids, one per user message, kept so host-side per-turn data reconnects after a restart. */
++	turnIds: string[];
++	/** Messages restored from storage; they seed the agent when it is created on the next prompt. */
++	restoredMessages: PiMessage[] | undefined;
++	/** A save is in flight, and whether another is needed once it finishes. */
++	saving: Promise<void> | undefined;
++	dirty: boolean;
 +	/** Selected model as `provider/id`, or `undefined` for the default. */
 +	model: string | undefined;
 +	agent: PiAgentInstance | undefined;
@@ -1232,6 +1246,7 @@ index 00000000..8b037b10
 +
 +	constructor(
 +		@ILogService private readonly _logService: ILogService,
++		@ISessionDataService private readonly _sessionData: ISessionDataService,
 +	) {
 +		super();
 +		void this.refreshModels();
@@ -1312,6 +1327,67 @@ index 00000000..8b037b10
 +		return configured && ids.includes(configured) ? configured : ids[0];
 +	}
 +
++	// ---- Persistence ---------------------------------------------------------
++
++	private static _metaKey(chatId: string): string { return `pi.meta.${chatId}`; }
++	private static _conversationKey(chatId: string): string { return `pi.conversation.${chatId}`; }
++
++	private static _chatIdFrom(providerData: string | undefined): string | undefined {
++		if (!providerData) {
++			return undefined;
++		}
++		try {
++			const id = (JSON.parse(providerData) as { id?: unknown }).id;
++			return typeof id === 'string' && id ? id : undefined;
++		} catch {
++			return undefined;
++		}
++	}
++
++	private async _withDatabase<T>(session: URI, fn: (database: ISessionDatabase) => Promise<T>): Promise<T> {
++		const reference = this._sessionData.openDatabase(session);
++		try {
++			return await fn(reference.object);
++		} finally {
++			reference.dispose();
++		}
++	}
++
++	private _messagesOf(entry: IPiChat): readonly PiMessage[] {
++		return (entry.agent ? entry.agent.state.messages : entry.restoredMessages ?? []) as readonly PiMessage[];
++	}
++
++	/** Save soon; saves for one chat never overlap, and changes made during a save trigger one more. */
++	private _scheduleSave(entry: IPiChat): void {
++		entry.dirty = true;
++		entry.saving ??= (async () => {
++			while (entry.dirty) {
++				entry.dirty = false;
++				await this._saveNow(entry).catch(error => this._logService.warn(`[Pi] could not save chat: ${error instanceof Error ? error.message : String(error)}`));
++			}
++		})().finally(() => { entry.saving = undefined; });
++	}
++
++	private async _saveNow(entry: IPiChat): Promise<void> {
++		if (!entry.session || !entry.chatId) {
++			return;
++		}
++		const meta: IPiChatMeta = { v: PI_CONVERSATION_VERSION, createdAt: entry.startTime, modifiedAt: entry.modifiedTime, title: entry.title, model: entry.model, cwd: entry.cwd };
++		const conversation: IPiConversation = { ...meta, turnIds: entry.turnIds, messages: [...this._messagesOf(entry)] };
++		const body = JSON.stringify(conversation);
++		if (body.length > PI_MAX_PERSISTED_BYTES) {
++			this._logService.warn('[Pi] conversation is too large to save; keeping the last saved copy');
++			return;
++		}
++		const session = entry.session;
++		const chatId = entry.chatId;
++		await this._withDatabase(session, database => database.setMetadataValues({ [PiAgent._conversationKey(chatId)]: body, [PiAgent._metaKey(chatId)]: JSON.stringify(meta) }));
++	}
++
++	private _metadataFor(entry: IPiChat): IAgentChatMetadata {
++		return { chat: entry.chat, startTime: entry.startTime, modifiedTime: entry.modifiedTime, summary: entry.title, model: entry.model ? { id: entry.model } : undefined, workingDirectories: entry.cwd ? [URI.file(entry.cwd)] : undefined };
++	}
++
 +	// ---- Chats ---------------------------------------------------------------
 +
 +	private _entry(chat: URI): IPiChat {
@@ -1319,7 +1395,7 @@ index 00000000..8b037b10
 +		let entry = this._chats.get(key);
 +		if (!entry) {
 +			const now = Date.now();
-+			entry = { chat, startTime: now, modifiedTime: now, model: undefined, agent: undefined, aborted: false, cwd: undefined, turnId: undefined, toolInfo: new Map(), deniedTools: new Set() };
++			entry = { chat, startTime: now, modifiedTime: now, session: undefined, chatId: undefined, title: undefined, turnIds: [], restoredMessages: undefined, saving: undefined, dirty: false, model: undefined, agent: undefined, aborted: false, cwd: undefined, turnId: undefined, toolInfo: new Map(), deniedTools: new Set() };
 +			this._chats.set(key, entry);
 +		}
 +		return entry;
@@ -1330,9 +1406,14 @@ index 00000000..8b037b10
 +	}
 +
 +	readonly chats: IAgentChats = {
-+		createChat: async (chat: URI, _context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
-+			this._entry(chat).model = options?.model?.id;
-+			return { resolvedWorkingDirectory: options?.workingDirectories?.[0] };
++		createChat: async (chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
++			const entry = this._entry(chat);
++			entry.model = options?.model?.id;
++			entry.session = resolveAgentChatContext(context, chat).configurationResource;
++			entry.chatId ??= generateUuid();
++			entry.cwd = options?.workingDirectories?.[0]?.fsPath ?? entry.cwd;
++			await this._saveNow(entry).catch(error => this._logService.warn(`[Pi] could not create chat storage: ${error instanceof Error ? error.message : String(error)}`));
++			return { resolvedWorkingDirectory: options?.workingDirectories?.[0], providerData: JSON.stringify({ id: entry.chatId }) };
 +		},
 +		disposeChat: async (chat: URI): Promise<void> => {
 +			const entry = this._chats.get(chat.toString());
@@ -1359,10 +1440,15 @@ index 00000000..8b037b10
 +			return model ? { id: model } : undefined;
 +		},
 +		changeModel: async (chat: URI, model: ModelSelection): Promise<void> => {
-+			this._entry(chat).model = model.id;
++			const entry = this._entry(chat);
++			entry.model = model.id;
++			this._scheduleSave(entry);
 +		},
 +		changeAgent: async (_chat: URI, _agent: AgentSelection | undefined): Promise<void> => { },
-+		getMessages: async (): Promise<readonly Turn[]> => [],
++		getMessages: async (chat: URI): Promise<readonly Turn[]> => {
++			const entry = this._chats.get(chat.toString());
++			return entry ? toTurns(this._messagesOf(entry), entry.turnIds, entry.cwd) : [];
++		},
 +	};
 +
 +	private async _runTurn(entry: IPiChat, prompt: string, turnId: string, cwd: URI | undefined): Promise<void> {
@@ -1385,12 +1471,22 @@ index 00000000..8b037b10
 +			}
 +
 +			const agent = entry.agent ??= new deps.core.Agent({
-+				initialState: { systemPrompt: buildSystemPrompt(cwd), model },
++				// A restored chat starts from its saved messages, so the model remembers the conversation.
++				initialState: { systemPrompt: buildSystemPrompt(cwd), model, messages: entry.restoredMessages ? [...entry.restoredMessages] as never : [] },
 +				// Always the live collection, so provider edits apply to existing chats.
 +				streamFn: (...args) => this._piModels!.streamSimple(...args),
 +			});
++			entry.restoredMessages = undefined;
 +			agent.state.model = model;
++			entry.model ??= `${model.provider}/${model.id}`;
 +			entry.cwd = cwd?.fsPath ?? entry.cwd;
++			entry.turnIds.push(turnId);
++			if (!entry.title) {
++				entry.title = titleFromPrompt(prompt);
++				if (entry.title) {
++					this._fire(chat, { type: ActionType.SessionTitleChanged, title: entry.title });
++				}
++			}
 +			entry.turnId = turnId;
 +			entry.toolInfo.clear();
 +			entry.deniedTools.clear();
@@ -1400,6 +1496,10 @@ index 00000000..8b037b10
 +			let lastError: string | undefined;
 +			const parts = new Map<string, string>();
 +			const unsubscribe = agent.subscribe(event => {
++				if (event.type === 'message_end') {
++					entry.modifiedTime = Date.now();
++					this._scheduleSave(entry);
++				}
 +				if (event.type === 'message_start' && event.message.role === 'assistant') {
 +					parts.clear();
 +				} else if (event.type === 'message_update') {
@@ -1423,6 +1523,7 @@ index 00000000..8b037b10
 +				await agent.prompt(prompt);
 +			} finally {
 +				unsubscribe();
++				this._scheduleSave(entry);
 +			}
 +
 +			if (entry.aborted) {
@@ -1539,13 +1640,47 @@ index 00000000..8b037b10
 +		this._fire(entry.chat, { type: ActionType.ChatToolCallComplete, turnId, toolCallId, result: toolResult });
 +	}
 +
-+	async materializeChat(chat: URI, _context: URI | IAgentChatContext, _providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
-+		this._entry(chat);
++	/** Re-attach a chat after a restart: reload its saved conversation from the session database. */
++	async materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
++		const entry = this._entry(chat);
++		entry.session = resolveAgentChatContext(context, chat).configurationResource;
++		const chatId = PiAgent._chatIdFrom(providerData);
++		if (!chatId || entry.restoredMessages || entry.agent) {
++			return;
++		}
++		entry.chatId = chatId;
++		try {
++			const conversation = parseConversation(await this._withDatabase(entry.session, database => database.getMetadata(PiAgent._conversationKey(chatId))));
++			if (!conversation) {
++				this._logService.warn(`[Pi] no saved conversation found for ${chat.toString()}`);
++				return;
++			}
++			entry.startTime = conversation.createdAt;
++			entry.modifiedTime = conversation.modifiedAt;
++			entry.title = conversation.title;
++			entry.model = conversation.model;
++			entry.cwd = conversation.cwd;
++			entry.turnIds = [...conversation.turnIds];
++			entry.restoredMessages = [...conversation.messages];
++			this._logService.info(`[Pi] restored ${conversation.messages.length} messages for a chat`);
++		} catch (error) {
++			this._logService.warn(`[Pi] could not restore a chat: ${error instanceof Error ? error.message : String(error)}`);
++		}
 +	}
 +
-+	async getChatMetadata(chat: URI): Promise<IAgentChatMetadata | undefined> {
++	async getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined> {
 +		const entry = this._chats.get(chat.toString());
-+		return entry && { chat, startTime: entry.startTime, modifiedTime: entry.modifiedTime };
++		if (entry?.chatId) {
++			return this._metadataFor(entry);
++		}
++		// Not loaded in this process yet (the host asks before it re-attaches): answer from the small saved record.
++		const chatId = PiAgent._chatIdFrom(providerData);
++		if (!chatId) {
++			return undefined;
++		}
++		const session = resolveAgentChatContext(context, chat).configurationResource;
++		const meta = parseChatMeta(await this._withDatabase(session, database => database.getMetadata(PiAgent._metaKey(chatId))).catch(() => undefined));
++		return meta && { chat, startTime: meta.createdAt, modifiedTime: meta.modifiedAt, summary: meta.title, model: meta.model ? { id: meta.model } : undefined, workingDirectories: meta.cwd ? [URI.file(meta.cwd)] : undefined };
 +	}
 +
 +	async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined> {
@@ -1616,6 +1751,8 @@ index 00000000..8b037b10
 +		for (const entry of this._chats.values()) {
 +			entry.agent?.abort();
 +		}
++		// Let pending saves finish so quitting right after a reply keeps it.
++		await Promise.all([...this._chats.values()].map(entry => entry.saving));
 +	}
 +}
 +
@@ -1629,6 +1766,232 @@ index 00000000..8b037b10
 +		lines.push(`The working directory is ${cwd.fsPath}. You can read and list files, write and edit files, and run shell commands there; writes and commands are shown to the user for approval.`);
 +	}
 +	return lines.join('\n');
++}
+diff --git a/src/vs/platform/agentHost/node/pi/piConversation.ts b/src/vs/platform/agentHost/node/pi/piConversation.ts
+new file mode 100644
+index 00000000..32bed2b0
+--- /dev/null
++++ b/src/vs/platform/agentHost/node/pi/piConversation.ts
+@@ -0,0 +1,220 @@
++/*---------------------------------------------------------------------------------------------
++ *  Copyright (c) Microsoft Corporation. All rights reserved.
++ *  Licensed under the MIT License. See License.txt in the project root for license information.
++ *--------------------------------------------------------------------------------------------*/
++
++import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type Turn } from '../../common/state/sessionState.js';
++import { describePiTool } from './piTools.js';
++
++/**
++ * Persisted Pi conversations.
++ *
++ * Two values live in the session's own database per chat: a small
++ * {@link IPiChatMeta} (read when sessions are listed, so a long conversation is
++ * never loaded just to show its title) and the full {@link IPiConversation}.
++ * Both are versioned JSON; anything unreadable is treated as absent, never thrown.
++ */
++
++export const PI_CONVERSATION_VERSION = 1;
++
++/** Refuse to persist a conversation beyond this size; the last good copy is kept instead. */
++export const PI_MAX_PERSISTED_BYTES = 40 * 1024 * 1024;
++
++/** Small record read when listing and restoring. */
++export interface IPiChatMeta {
++	readonly v: number;
++	readonly createdAt: number;
++	readonly modifiedAt: number;
++	readonly title?: string;
++	/** Selected model as `provider/id`. */
++	readonly model?: string;
++	/** Working directory (fsPath) the chat's tools run in. */
++	readonly cwd?: string;
++}
++
++/** Full persisted conversation. `messages` are Pi `AgentMessage`s, kept as opaque JSON. */
++export interface IPiConversation extends IPiChatMeta {
++	/** Host turn ids, one per user message in order, so the host's per-turn data reconnects after a restart. */
++	readonly turnIds: readonly string[];
++	readonly messages: readonly PiMessage[];
++}
++
++/** The subset of Pi's message shapes this module reads. Unknown roles are skipped. */
++export interface PiMessage {
++	readonly role: string;
++	readonly timestamp?: number;
++	readonly content?: unknown;
++	readonly toolCallId?: string;
++	readonly toolName?: string;
++	readonly isError?: boolean;
++	readonly usage?: { readonly input?: number; readonly output?: number; readonly cacheRead?: number };
++	readonly provider?: string;
++	readonly model?: string;
++	readonly stopReason?: string;
++	readonly errorMessage?: string;
++}
++
++function isRecord(value: unknown): value is Record<string, unknown> {
++	return typeof value === 'object' && value !== null && !Array.isArray(value);
++}
++
++export function parseChatMeta(text: string | undefined): IPiChatMeta | undefined {
++	if (!text) {
++		return undefined;
++	}
++	try {
++		const raw: unknown = JSON.parse(text);
++		if (!isRecord(raw) || raw['v'] !== PI_CONVERSATION_VERSION || typeof raw['createdAt'] !== 'number' || typeof raw['modifiedAt'] !== 'number') {
++			return undefined;
++		}
++		return {
++			v: PI_CONVERSATION_VERSION,
++			createdAt: raw['createdAt'],
++			modifiedAt: raw['modifiedAt'],
++			title: typeof raw['title'] === 'string' ? raw['title'] : undefined,
++			model: typeof raw['model'] === 'string' ? raw['model'] : undefined,
++			cwd: typeof raw['cwd'] === 'string' ? raw['cwd'] : undefined,
++		};
++	} catch {
++		return undefined;
++	}
++}
++
++export function parseConversation(text: string | undefined): IPiConversation | undefined {
++	const meta = parseChatMeta(text);
++	if (!meta || !text) {
++		return undefined;
++	}
++	try {
++		const raw = JSON.parse(text) as Record<string, unknown>;
++		if (!Array.isArray(raw['messages'])) {
++			return undefined;
++		}
++		const messages = (raw['messages'] as unknown[]).filter((message): message is PiMessage => isRecord(message) && typeof message['role'] === 'string');
++		const turnIds = Array.isArray(raw['turnIds']) ? (raw['turnIds'] as unknown[]).filter((id): id is string => typeof id === 'string') : [];
++		return { ...meta, turnIds, messages };
++	} catch {
++		return undefined;
++	}
++}
++
++/** A short title from the first thing the user asked. */
++export function titleFromPrompt(prompt: string): string {
++	const line = prompt.trim().split(/\r?\n/)[0]?.trim() ?? '';
++	return line.length > 60 ? `${line.slice(0, 57)}...` : line;
++}
++
++function textOf(content: unknown): string {
++	if (typeof content === 'string') {
++		return content;
++	}
++	if (!Array.isArray(content)) {
++		return '';
++	}
++	return content
++		.filter((block): block is { type: string; text: string } => isRecord(block) && block['type'] === 'text' && typeof block['text'] === 'string')
++		.map(block => block.text)
++		.join('\n');
++}
++
++const iso = (time: number | undefined) => new Date(time ?? Date.now()).toISOString();
++
++/**
++ * Rebuild the display history from Pi's messages: one turn per user message, with
++ * the assistant's text, reasoning and tool calls in order. A tool call whose result
++ * was never recorded (the app was closed mid-call) is shown as failed rather than dropped.
++ */
++export function toTurns(messages: readonly PiMessage[], turnIds: readonly string[], cwd: string | undefined): Turn[] {
++	const results = new Map<string, PiMessage>();
++	for (const message of messages) {
++		if (message.role === 'toolResult' && message.toolCallId) {
++			results.set(message.toolCallId, message);
++		}
++	}
++
++	const turns: Turn[] = [];
++	let current: Turn | undefined;
++	let userIndex = 0;
++	let lastTimestamp = 0;
++
++	const finish = () => {
++		if (current && lastTimestamp) {
++			const started = Date.parse(current.startedAt ?? '');
++			if (!Number.isNaN(started) && lastTimestamp >= started) {
++				current.duration = lastTimestamp - started;
++			}
++		}
++	};
++
++	messages.forEach((message, index) => {
++		if (message.role === 'user') {
++			finish();
++			current = {
++				id: turnIds[userIndex] ?? `pi-turn-${index}`,
++				startedAt: iso(message.timestamp),
++				message: { text: textOf(message.content), origin: { kind: MessageKind.User } },
++				responseParts: [],
++				usage: undefined,
++				state: TurnState.Complete,
++			};
++			userIndex++;
++			turns.push(current);
++			lastTimestamp = message.timestamp ?? 0;
++			return;
++		}
++		if (message.role !== 'assistant' || !current) {
++			return;
++		}
++		lastTimestamp = message.timestamp ?? lastTimestamp;
++		const blocks = Array.isArray(message.content) ? message.content as Record<string, unknown>[] : [];
++		blocks.forEach((block, blockIndex) => {
++			const id = `pi-${index}-${blockIndex}`;
++			if (block['type'] === 'text' && typeof block['text'] === 'string' && block['text']) {
++				current!.responseParts.push({ kind: ResponsePartKind.Markdown, id, content: block['text'] });
++			} else if (block['type'] === 'thinking' && typeof block['thinking'] === 'string' && block['thinking']) {
++				current!.responseParts.push({ kind: ResponsePartKind.Reasoning, id, content: block['thinking'] });
++			} else if (block['type'] === 'toolCall' && typeof block['id'] === 'string' && typeof block['name'] === 'string') {
++				current!.responseParts.push(toolCallPart(block['id'], block['name'], block['arguments'], results.get(block['id']), cwd));
++			}
++		});
++		if (message.usage) {
++			const previous = current.usage;
++			current.usage = {
++				inputTokens: (previous?.inputTokens ?? 0) + (message.usage.input ?? 0),
++				outputTokens: (previous?.outputTokens ?? 0) + (message.usage.output ?? 0),
++				cacheReadTokens: (previous?.cacheReadTokens ?? 0) + (message.usage.cacheRead ?? 0),
++				model: message.provider && message.model ? `${message.provider}/${message.model}` : previous?.model,
++			};
++		}
++		if (message.stopReason === 'error') {
++			current.state = TurnState.Error;
++			current.error = { errorType: 'pi.modelError', message: message.errorMessage ?? 'The model returned an error.' };
++		} else if (message.stopReason === 'aborted') {
++			current.state = TurnState.Cancelled;
++		}
++	});
++	finish();
++	return turns;
++}
++
++function toolCallPart(toolCallId: string, name: string, args: unknown, result: PiMessage | undefined, cwd: string | undefined): ResponsePart {
++	const info = describePiTool(cwd ?? '.', name, args);
++	const output = result ? textOf(result.content) : '';
++	const failed = !result || result.isError === true;
++	return {
++		kind: ResponsePartKind.ToolCall,
++		toolCall: {
++			status: ToolCallStatus.Completed,
++			toolCallId,
++			toolName: name,
++			displayName: info.displayName,
++			invocationMessage: info.invocationMessage,
++			toolInput: info.toolInput,
++			confirmed: ToolCallConfirmationReason.NotNeeded,
++			success: !failed,
++			pastTenseMessage: info.pastTenseMessage,
++			content: output ? [{ type: ToolResultContentType.Text, text: output.slice(0, 20_000) }] : undefined,
++			error: failed ? { message: result ? (output || 'The tool failed.') : 'No result was recorded; the app was closed before the tool finished.' } : undefined,
++		},
++	};
 +}
 diff --git a/src/vs/platform/agentHost/node/pi/piProviderRuntime.ts b/src/vs/platform/agentHost/node/pi/piProviderRuntime.ts
 new file mode 100644

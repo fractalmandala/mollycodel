@@ -91,7 +91,7 @@ index 00000000..0fb7a8c3
 +];
 diff --git a/src/vs/platform/agentHost/common/piProviders.ts b/src/vs/platform/agentHost/common/piProviders.ts
 new file mode 100644
-index 00000000..1fbe2206
+index 00000000..2914d810
 --- /dev/null
 +++ b/src/vs/platform/agentHost/common/piProviders.ts
 @@ -0,0 +1,154 @@
@@ -241,7 +241,7 @@ index 00000000..1fbe2206
 +			baseUrl: kind === 'builtin' ? undefined : baseUrl,
 +			headers: sanitizeHeaders(entry['headers']),
 +			models: sanitizeModels(entry['models']),
-+			apiKey: typeof entry['apiKey'] === 'string' && entry['apiKey'] ? entry['apiKey'] : undefined,
++			apiKey: typeof entry['apiKey'] === 'string' && entry['apiKey'].trim() ? entry['apiKey'].trim() : undefined,
 +		});
 +	}
 +	return {
@@ -265,10 +265,10 @@ index f76abab5..8f2d9c0b 100644
  	} catch (err) {
 diff --git a/src/vs/platform/agentHost/node/opencode/opencodeAgent.ts b/src/vs/platform/agentHost/node/opencode/opencodeAgent.ts
 new file mode 100644
-index 00000000..d0daf60c
+index 00000000..d820ff7f
 --- /dev/null
 +++ b/src/vs/platform/agentHost/node/opencode/opencodeAgent.ts
-@@ -0,0 +1,641 @@
+@@ -0,0 +1,927 @@
 +/*---------------------------------------------------------------------------------------------
 + *  Copyright (c) Microsoft Corporation. All rights reserved.
 + *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -288,6 +288,7 @@ index 00000000..d0daf60c
 +import type { AgentSignal, IActiveClient, IAgent, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentModelInfo, IAgentResolveChatConfigParams } from '../../common/agent.js';
 +import { OpenCodeHttp, type OcJson } from './opencodeHttp.js';
 +import { OpenCodeServer } from './opencodeServer.js';
++import { mapModelsV2, prettify, textOfContent, toTurnsV2 } from './opencodeV2.js';
 +import { homedir } from 'os';
 +
 +/** Provider id for the OpenCode harness. */
@@ -300,6 +301,9 @@ index 00000000..d0daf60c
 +	started: boolean;
 +	ready: boolean;
 +	finished: boolean;
++	name: string;
++	/** The call's input, kept until the call is announced (2.x). */
++	input?: unknown;
 +}
 +
 +interface IOcTurn {
@@ -309,6 +313,12 @@ index 00000000..d0daf60c
 +	/** Streamed text/reasoning parts: how many characters have been sent to the host. */
 +	readonly parts: Map<string, { readonly kind: 'text' | 'reasoning'; emitted: number }>;
 +	readonly tools: Map<string, IOcTool>;
++	/** 2.x: assistant message id -> `providerID/modelID`, for usage reporting. */
++	readonly models: Map<string, string>;
++	/** 2.x: when the last event for this turn arrived; a quiet turn is checked against the server. */
++	lastEventAt: number;
++	/** 2.x: when the server accepted the prompt. */
++	promptAt?: number;
 +}
 +
 +interface IOcChat {
@@ -320,6 +330,9 @@ index 00000000..d0daf60c
 +	/** `providerID/modelID`, or undefined for OpenCode's own default. */
 +	model: string | undefined;
 +	agent: string | undefined;
++	/** 2.x: the model and agent the server's session currently uses, so a change is sent once. */
++	appliedModel: string | undefined;
++	appliedAgent: string | undefined;
 +	turn: IOcTurn | undefined;
 +}
 +
@@ -355,6 +368,9 @@ index 00000000..d0daf60c
 +
 +	private readonly _server: OpenCodeServer;
 +	private _http: Promise<OpenCodeHttp> | undefined;
++	/** Whether the connected server speaks OpenCode 2.x's API (decided once, on connect). */
++	private _v2 = false;
++	private _lastModelRefresh = 0;
 +	private readonly _eventAbort = new AbortController();
 +
 +	private readonly _chats = new Map<string, IOcChat>();
@@ -389,6 +405,9 @@ index 00000000..d0daf60c
 +		this._http ??= (async () => {
 +			const connection = await this._server.start();
 +			const http = new OpenCodeHttp(connection);
++			await http.detect();
++			this._v2 = http.isV2;
++			this._logService.info(`[OpenCode] server speaks the ${http.isV2 ? '2.x' : '1.x'} API`);
 +			void this._runEvents(http);
 +			return http;
 +		})().catch(error => {
@@ -416,6 +435,10 @@ index 00000000..d0daf60c
 +	async refreshModels(): Promise<void> {
 +		try {
 +			const http = await this._connect();
++			if (http.isV2) {
++				await this._refreshModelsV2(http);
++				return;
++			}
 +			const result = await http.get<{ providers?: OcJson[] }>('/config/providers');
 +			const infos: IAgentModelInfo[] = [];
 +			for (const provider of result.providers ?? []) {
@@ -445,7 +468,7 @@ index 00000000..d0daf60c
 +		let entry = this._chats.get(key);
 +		if (!entry) {
 +			const now = Date.now();
-+			entry = { chat, startTime: now, modifiedTime: now, sessionId: undefined, directory: undefined, model: undefined, agent: undefined, turn: undefined };
++			entry = { chat, startTime: now, modifiedTime: now, sessionId: undefined, directory: undefined, model: undefined, agent: undefined, appliedModel: undefined, appliedAgent: undefined, turn: undefined };
 +			this._chats.set(key, entry);
 +		}
 +		return entry;
@@ -487,7 +510,8 @@ index 00000000..d0daf60c
 +			if (entry?.turn && entry.sessionId && entry.directory) {
 +				entry.turn.aborted = true;
 +				const http = await this._connect();
-+				await http.post(`/session/${entry.sessionId}/abort`, {}, entry.directory).catch(error => this._logService.warn(`[OpenCode] abort failed: ${error instanceof Error ? error.message : String(error)}`));
++				const stop = http.isV2 ? http.post(`/api/session/${entry.sessionId}/interrupt`, {}) : http.post(`/session/${entry.sessionId}/abort`, {}, entry.directory);
++				await stop.catch(error => this._logService.warn(`[OpenCode] abort failed: ${error instanceof Error ? error.message : String(error)}`));
 +			}
 +		},
 +		getModel: (chat: URI): ModelSelection | undefined => {
@@ -511,6 +535,20 @@ index 00000000..d0daf60c
 +			}
 +			try {
 +				const http = await this._connect();
++				if (http.isV2) {
++					// The server returns at most 200 messages a page; follow the cursor for longer conversations.
++					const items: OcJson[] = [];
++					let cursor: string | undefined;
++					for (let page = 0; page < 25; page++) {
++						const result = await http.get<{ data?: OcJson[]; cursor?: { next?: string | null } }>(`/api/session/${entry.sessionId}/message?limit=200&${cursor ? `cursor=${encodeURIComponent(cursor)}` : 'order=asc'}`);
++						items.push(...(result.data ?? []));
++						cursor = result.cursor?.next ?? undefined;
++						if (!cursor || !result.data?.length) {
++							break;
++						}
++					}
++					return toTurnsV2(items);
++				}
 +				return toTurns(await http.get<OcJson[]>(`/session/${entry.sessionId}/message`, entry.directory));
 +			} catch (error) {
 +				this._logService.warn(`[OpenCode] could not read history: ${error instanceof Error ? error.message : String(error)}`);
@@ -521,7 +559,7 @@ index 00000000..d0daf60c
 +
 +	private async _runTurn(entry: IOcChat, prompt: string, turnId: string, cwd: string | undefined): Promise<void> {
 +		const startedAt = Date.now();
-+		const turn: IOcTurn = { id: turnId, startedAt, aborted: false, parts: new Map(), tools: new Map() };
++		const turn: IOcTurn = { id: turnId, startedAt, aborted: false, parts: new Map(), tools: new Map(), models: new Map(), lastEventAt: startedAt };
 +		const fail = (errorType: string, message: string) => {
 +			if (entry.turn === turn) {
 +				entry.turn = undefined;
@@ -532,6 +570,10 @@ index 00000000..d0daf60c
 +			const http = await this._connect();
 +			entry.directory = cwd ?? entry.directory ?? homedir();
 +			entry.modifiedTime = startedAt;
++			if (http.isV2) {
++				await this._runTurnV2(http, entry, turn, prompt);
++				return;
++			}
 +			if (!entry.sessionId) {
 +				const session = await http.post<OcJson>('/session', {}, entry.directory);
 +				entry.sessionId = session['id'] as string;
@@ -548,7 +590,7 @@ index 00000000..d0daf60c
 +				body['agent'] = entry.agent;
 +			}
 +			// The request returns when the run finishes; events carry the progress.
-+			await http.post(`/session/${entry.sessionId}/message`, body, entry.directory);
++			await http.postAndWait(`/session/${entry.sessionId}/message`, body, entry.directory);
 +			// Fallback if the idle event was missed (stream reconnecting): finish the turn here.
 +			await timeout(400);
 +			this._completeTurn(entry, turn);
@@ -571,9 +613,253 @@ index 00000000..d0daf60c
 +		}
 +	}
 +
++	// ---- OpenCode 2.x ---------------------------------------------------------
++
++	/** Publish the models of a 2.x server. It fills its list in just after it starts, so wait for it. */
++	private async _refreshModelsV2(http: OpenCodeHttp): Promise<void> {
++		this._lastModelRefresh = Date.now();
++		let infos: IAgentModelInfo[] = [];
++		for (let attempt = 0; attempt < 30 && !infos.length; attempt++) {
++			const result = await http.get<{ data?: OcJson[] }>('/api/model', homedir());
++			infos = mapModelsV2(OPENCODE_AGENT_PROVIDER_ID, result.data ?? []);
++			if (!infos.length) {
++				await timeout(1000);
++			}
++		}
++		this._logService.info(`[OpenCode] publishing ${infos.length} models`);
++		this._models.set(infos.length ? infos : [setupModel('OpenCode has no providers configured. Add one in OpenCode.')], undefined);
++	}
++
++	/** The server announces model and provider changes; re-read the list, but not in a tight loop. */
++	private _scheduleModelRefresh(): void {
++		if (Date.now() - this._lastModelRefresh < 5000) {
++			return;
++		}
++		this._lastModelRefresh = Date.now();
++		void timeout(500).then(() => this.refreshModels());
++	}
++
++	private async _runTurnV2(http: OpenCodeHttp, entry: IOcChat, turn: IOcTurn, prompt: string): Promise<void> {
++		const modelRef = (() => {
++			if (!entry.model) {
++				return undefined;
++			}
++			const [providerID, ...rest] = entry.model.split('/');
++			return { providerID, id: rest.join('/') };
++		})();
++		if (!entry.sessionId) {
++			const body: OcJson = { location: { directory: entry.directory } };
++			if (modelRef) {
++				body['model'] = modelRef;
++			}
++			if (entry.agent) {
++				body['agent'] = entry.agent;
++			}
++			const created = await http.post<OcJson>('/api/session', body);
++			entry.sessionId = created['data']['id'] as string;
++			entry.appliedModel = entry.model;
++			entry.appliedAgent = entry.agent;
++			this._bySession.set(entry.sessionId, entry);
++			this._persist(entry);
++		} else {
++			if (modelRef && entry.model !== entry.appliedModel) {
++				await http.post(`/api/session/${entry.sessionId}/model`, { model: modelRef });
++				entry.appliedModel = entry.model;
++			}
++			if (entry.agent && entry.agent !== entry.appliedAgent) {
++				await http.post(`/api/session/${entry.sessionId}/agent`, { agent: entry.agent });
++				entry.appliedAgent = entry.agent;
++			}
++		}
++		entry.turn = turn;
++		turn.lastEventAt = Date.now();
++		// Returns as soon as the message is queued; events carry the run, and its end.
++		await http.post(`/api/session/${entry.sessionId}/prompt`, { text: prompt });
++		turn.promptAt = Date.now();
++		void this._watchTurnV2(http, entry, turn);
++	}
++
++	/** If the event stream drops mid-run the end could be missed; ask the server when things go quiet. */
++	private async _watchTurnV2(http: OpenCodeHttp, entry: IOcChat, turn: IOcTurn): Promise<void> {
++		while (entry.turn === turn && !turn.aborted) {
++			await timeout(4000);
++			if (entry.turn !== turn || Date.now() - turn.lastEventAt < 8000) {
++				continue;
++			}
++			try {
++				const info = await http.get<OcJson>(`/api/session/${entry.sessionId}`);
++				const idle = info['data']?.['time']?.['idle'];
++				if (typeof idle === 'number' && idle >= (turn.promptAt ?? turn.startedAt)) {
++					this._completeTurn(entry, turn);
++				}
++			} catch {
++				// Try again on the next round.
++			}
++		}
++	}
++
++	private _onEventV2(event: OcJson): void {
++		const type = event['type'] as string | undefined;
++		const data = (event['data'] ?? {}) as OcJson;
++		if (!type) {
++			return;
++		}
++		if (type === 'model.updated' || type === 'provider.updated') {
++			this._scheduleModelRefresh();
++			return;
++		}
++		const entry = typeof data['sessionID'] === 'string' ? this._bySession.get(data['sessionID']) : undefined;
++		if (!entry) {
++			return;
++		}
++		if (type === 'session.renamed' && typeof data['title'] === 'string') {
++			this._fire(entry.chat, { type: ActionType.SessionTitleChanged, title: data['title'] });
++			return;
++		}
++		const turn = entry.turn;
++		if (!turn) {
++			return;
++		}
++		turn.lastEventAt = Date.now();
++		const messageId = String(data['assistantMessageID'] ?? '');
++		switch (type) {
++			case 'session.step.started':
++				if (data['model']) {
++					turn.models.set(messageId, `${data['model']['providerID']}/${data['model']['id']}`);
++				}
++				return;
++			case 'session.text.started':
++			case 'session.reasoning.started': {
++				const kind = type === 'session.text.started' ? 'text' : 'reasoning';
++				const id = `${messageId}:${kind}:${data['ordinal'] ?? 0}`;
++				turn.parts.set(id, { kind, emitted: 0 });
++				this._fire(entry.chat, { type: ActionType.ChatResponsePart, turnId: turn.id, part: { kind: kind === 'text' ? ResponsePartKind.Markdown : ResponsePartKind.Reasoning, id, content: '' } });
++				return;
++			}
++			case 'session.text.delta':
++			case 'session.reasoning.delta': {
++				const kind = type === 'session.text.delta' ? 'text' : 'reasoning';
++				const id = `${messageId}:${kind}:${data['ordinal'] ?? 0}`;
++				const delta = data['delta'];
++				if (turn.parts.has(id) && typeof delta === 'string' && delta) {
++					this._fireDelta(entry, turn, id, kind, delta);
++				}
++				return;
++			}
++			case 'session.tool.input.started':
++				this._startTool(entry, turn, String(data['id']), String(data['name'] ?? 'tool'));
++				return;
++			case 'session.tool.called': {
++				const tool = this._tool(turn, String(data['id']));
++				tool.input = data['input'];
++				return;
++			}
++			case 'session.tool.progress': {
++				// Running: it was either allowed outright or the user just approved it.
++				const tool = this._tool(turn, String(data['id']));
++				this._readyToolV2(entry, turn, String(data['id']), tool);
++				return;
++			}
++			case 'session.tool.success':
++			case 'session.tool.failed': {
++				const callId = String(data['id']);
++				const tool = this._tool(turn, callId);
++				if (!tool.started) {
++					this._startTool(entry, turn, callId, tool.name);
++				}
++				this._readyToolV2(entry, turn, callId, tool);
++				if (tool.finished) {
++					return;
++				}
++				tool.finished = true;
++				const failed = type === 'session.tool.failed';
++				const output = failed ? '' : textOfContent(data['content']);
++				const result: ToolCallResult = {
++					success: !failed,
++					pastTenseMessage: prettify(tool.name),
++					content: output ? [{ type: ToolResultContentType.Text, text: output.slice(0, 20_000) }] : undefined,
++					error: failed ? { message: String(data['error']?.['message'] ?? 'The tool failed.') } : undefined,
++				};
++				this._fire(entry.chat, { type: ActionType.ChatToolCallComplete, turnId: turn.id, toolCallId: callId, result });
++				return;
++			}
++			case 'permission.asked':
++				this._onPermissionV2(entry, turn, data);
++				return;
++			case 'session.step.ended': {
++				const tokens = data['tokens'] as OcJson | undefined;
++				if (tokens) {
++					this._fire(entry.chat, {
++						type: ActionType.ChatUsage,
++						turnId: turn.id,
++						usage: { inputTokens: tokens['input'], outputTokens: tokens['output'], cacheReadTokens: tokens['cache']?.['read'], model: turn.models.get(messageId) },
++					});
++				}
++				return;
++			}
++			case 'session.execution.succeeded':
++				this._completeTurn(entry, turn);
++				return;
++			case 'session.execution.interrupted':
++				if (turn.aborted) {
++					entry.turn = undefined; // the host already dispatched the cancellation
++				} else {
++					this._completeTurn(entry, turn);
++				}
++				return;
++			default:
++				if (type.endsWith('.failed') && type.startsWith('session.') && !type.startsWith('session.tool.')) {
++					entry.turn = undefined;
++					if (!turn.aborted) {
++						const error = (data['error'] ?? data) as OcJson;
++						this._fire(entry.chat, { type: ActionType.ChatError, turnId: turn.id, duration: Date.now() - turn.startedAt, error: { errorType: `opencode.${error['type'] ?? 'error'}`, message: String(error['message'] ?? 'OpenCode reported an error.') } });
++					}
++				}
++		}
++	}
++
++	/** Announce a 2.x tool call as running (once). */
++	private _readyToolV2(entry: IOcChat, turn: IOcTurn, callId: string, tool: IOcTool): void {
++		if (tool.ready) {
++			return;
++		}
++		tool.ready = true;
++		this._fire(entry.chat, { type: ActionType.ChatToolCallReady, turnId: turn.id, toolCallId: callId, invocationMessage: prettify(tool.name), toolInput: safeJson(tool.input), confirmed: ToolCallConfirmationReason.NotNeeded });
++	}
++
++	private _onPermissionV2(entry: IOcChat, turn: IOcTurn, data: OcJson): void {
++		const requestId = String(data['id']);
++		const kind = String(data['action'] ?? 'tool');
++		const callId = data['source']?.['type'] === 'tool' ? String(data['source']['id']) : `permission-${requestId}`;
++		const resources = ((data['resources'] ?? []) as unknown[]).map(String);
++		const tool = this._startTool(entry, turn, callId, kind);
++		tool.ready = true; // the pending confirmation moves the tool call forward
++		this._permissions.set(callId, { sessionId: entry.sessionId!, directory: entry.directory!, requestId });
++		const title = String(data['message'] ?? prettify(kind));
++		this._onDidChatProgress.fire({
++			kind: 'pending_confirmation',
++			chat: entry.chat,
++			state: {
++				status: ToolCallStatus.PendingConfirmation,
++				toolCallId: callId,
++				toolName: kind,
++				displayName: prettify(kind),
++				invocationMessage: title,
++				toolInput: resources.join('\n') || undefined,
++				confirmationTitle: title,
++			},
++			permissionKind: permissionKindFor(kind),
++			permissionPath: resources[0],
++		});
++	}
++
 +	// ---- Events --------------------------------------------------------------
 +
 +	private _onEvent(event: OcJson): void {
++		if (this._v2) {
++			this._onEventV2(event);
++			return;
++		}
 +		const type = event['type'] as string | undefined;
 +		const props = (event['properties'] ?? {}) as OcJson;
 +		switch (type) {
@@ -683,7 +969,7 @@ index 00000000..d0daf60c
 +	private _tool(turn: IOcTurn, callId: string): IOcTool {
 +		let tool = turn.tools.get(callId);
 +		if (!tool) {
-+			tool = { started: false, ready: false, finished: false };
++			tool = { started: false, ready: false, finished: false, name: 'tool' };
 +			turn.tools.set(callId, tool);
 +		}
 +		return tool;
@@ -693,6 +979,7 @@ index 00000000..d0daf60c
 +		const tool = this._tool(turn, callId);
 +		if (!tool.started) {
 +			tool.started = true;
++			tool.name = name;
 +			this._fire(entry.chat, { type: ActionType.ChatToolCallStart, turnId: turn.id, toolCallId: callId, toolName: name, displayName: prettify(name) });
 +		}
 +		return tool;
@@ -768,6 +1055,10 @@ index 00000000..d0daf60c
 +		void (async () => {
 +			const http = await this._connect();
 +			try {
++				if (http.isV2) {
++					await http.post(`/api/session/${pending.sessionId}/permission/${pending.requestId}/reply`, { decision: approved ? 'once' : 'reject' });
++					return;
++				}
 +				await http.post(`/api/session/${pending.sessionId}/permission/${pending.requestId}/reply`, { reply: approved ? 'once' : 'reject' }, pending.directory);
 +			} catch {
 +				// Older servers answer on the classic endpoint.
@@ -855,11 +1146,6 @@ index 00000000..d0daf60c
 +	return { provider: OPENCODE_AGENT_PROVIDER_ID, id: SETUP_MODEL_ID, name: reason, supportsVision: false };
 +}
 +
-+function prettify(name: string): string {
-+	const spaced = name.replace(/[_-]+/g, ' ').trim();
-+	return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : 'Tool';
-+}
-+
 +function safeJson(value: unknown): string | undefined {
 +	try {
 +		return value === undefined ? undefined : JSON.stringify(value);
@@ -871,7 +1157,7 @@ index 00000000..d0daf60c
 +/** OpenCode permission names mapped onto the host's approval categories. */
 +function permissionKindFor(kind: string): 'shell' | 'write' | 'read' | 'url' | 'mcp' | 'custom-tool' {
 +	switch (kind) {
-+		case 'bash': return 'shell';
++		case 'bash': case 'shell': return 'shell';
 +		case 'edit': case 'write': case 'patch': case 'multiedit': return 'write';
 +		case 'read': case 'list': case 'glob': case 'grep': case 'external_directory': return 'read';
 +		case 'webfetch': case 'websearch': return 'url';
@@ -912,15 +1198,16 @@ index 00000000..d0daf60c
 +}
 diff --git a/src/vs/platform/agentHost/node/opencode/opencodeHttp.ts b/src/vs/platform/agentHost/node/opencode/opencodeHttp.ts
 new file mode 100644
-index 00000000..7d5fc19b
+index 00000000..374eb53e
 --- /dev/null
 +++ b/src/vs/platform/agentHost/node/opencode/opencodeHttp.ts
-@@ -0,0 +1,97 @@
+@@ -0,0 +1,170 @@
 +/*---------------------------------------------------------------------------------------------
 + *  Copyright (c) Microsoft Corporation. All rights reserved.
 + *  Licensed under the MIT License. See License.txt in the project root for license information.
 + *--------------------------------------------------------------------------------------------*/
 +
++import { request as httpRequest } from 'http';
 +import type { IOpenCodeConnection } from './opencodeServer.js';
 +
 +/** A loosely-typed JSON value; OpenCode payloads are validated where they are read. */
@@ -939,28 +1226,99 @@ index 00000000..7d5fc19b
 + */
 +export class OpenCodeHttp {
 +
++	/** True when the server speaks OpenCode 2.x's `/api/...` API. Set by {@link detect}. */
++	isV2 = false;
++
 +	constructor(private readonly _connection: IOpenCodeConnection) { }
 +
 +	private _url(path: string, directory?: string): string {
 +		const url = new URL(path, this._connection.url);
 +		if (directory) {
-+			url.searchParams.set('directory', directory);
++			// 2.x names the project directory `location[directory]`; 1.x called it `directory`.
++			url.searchParams.set(this.isV2 ? 'location[directory]' : 'directory', directory);
 +		}
 +		return url.toString();
++	}
++
++	/**
++	 * Find out which API the server speaks. 2.x answers `/api/info` with JSON; 1.x (and anything
++	 * else) does not, because the same path gets its web page or a 404.
++	 */
++	async detect(): Promise<void> {
++		try {
++			const response = await this._fetch(this._url('/api/info'), { headers: this._headers() }, 'GET /api/info');
++			const info = response.ok ? JSON.parse(await response.text()) as OcJson : undefined;
++			this.isV2 = typeof info?.['version'] === 'string' && Number.parseInt(info['version'], 10) >= 2;
++		} catch {
++			this.isV2 = false;
++		}
 +	}
 +
 +	private _headers(json = false): Record<string, string> {
 +		return { Authorization: this._connection.authorization, Accept: 'application/json', ...(json ? { 'Content-Type': 'application/json' } : {}) };
 +	}
 +
++	/**
++	 * `fetch` reports every network problem as the bare message "fetch failed"; the reason
++	 * (refused, reset, timed out) is on `cause`. Say what it was.
++	 */
++	private async _fetch(url: string, init: RequestInit, label: string): Promise<Response> {
++		try {
++			return await fetch(url, init);
++		} catch (error) {
++			const cause = (error as { cause?: { code?: string; message?: string } } | undefined)?.cause;
++			if (cause && (error as Error).message === 'fetch failed') {
++				throw new Error(`${label} failed: ${cause.code ? `${cause.code}: ` : ''}${cause.message ?? 'network error'}`);
++			}
++			throw error;
++		}
++	}
++
 +	async get<T = OcJson>(path: string, directory?: string, signal?: AbortSignal): Promise<T> {
-+		const response = await fetch(this._url(path, directory), { headers: this._headers(), signal });
++		const response = await this._fetch(this._url(path, directory), { headers: this._headers(), signal }, `GET ${path}`);
 +		return this._read<T>(response, `GET ${path}`);
 +	}
 +
 +	async post<T = OcJson>(path: string, body: unknown, directory?: string, signal?: AbortSignal): Promise<T> {
-+		const response = await fetch(this._url(path, directory), { method: 'POST', headers: this._headers(true), body: JSON.stringify(body ?? {}), signal });
++		const response = await this._fetch(this._url(path, directory), { method: 'POST', headers: this._headers(true), body: JSON.stringify(body ?? {}), signal }, `POST ${path}`);
 +		return this._read<T>(response, `POST ${path}`);
++	}
++
++	/**
++	 * A POST the server answers only when the work is finished (sending a message returns when the
++	 * run ends, which can take many minutes). `fetch` gives up on such a request after five minutes
++	 * with "fetch failed", so this uses Node's HTTP client, which has no such limit.
++	 */
++	postAndWait<T = OcJson>(path: string, body: unknown, directory?: string, signal?: AbortSignal): Promise<T> {
++		const label = `POST ${path}`;
++		return new Promise<T>((resolve, reject) => {
++			const payload = JSON.stringify(body ?? {});
++			const request = httpRequest(this._url(path, directory), { method: 'POST', headers: { ...this._headers(true), 'Content-Length': Buffer.byteLength(payload) }, signal }, response => {
++				const chunks: Buffer[] = [];
++				response.on('data', (chunk: Buffer) => chunks.push(chunk));
++				response.on('error', error => reject(new Error(`${label} failed: ${error.message}`)));
++				response.on('end', () => {
++					const text = Buffer.concat(chunks).toString('utf8');
++					const status = response.statusCode ?? 0;
++					if (status < 200 || status >= 300) {
++						let message = text;
++						try {
++							const parsed = JSON.parse(text) as OcJson;
++							message = parsed['data']?.['message'] ?? parsed['message'] ?? parsed['error'] ?? text;
++						} catch { /* keep the raw text */ }
++						reject(new Error(`${label} failed (${status}): ${String(message).slice(0, 300)}`));
++						return;
++					}
++					try {
++						resolve((text ? JSON.parse(text) : undefined) as T);
++					} catch {
++						resolve(undefined as T);
++					}
++				});
++			});
++			request.on('error', (error: NodeJS.ErrnoException) => reject(error.name === 'AbortError' ? error : new Error(`${label} failed: ${error.code ? `${error.code}: ` : ''}${error.message}`)));
++			request.end(payload);
++		});
 +	}
 +
 +	private async _read<T>(response: Response, label: string): Promise<T> {
@@ -982,9 +1340,10 @@ index 00000000..7d5fc19b
 +	 * line, each with one or more `data:` lines holding JSON.
 +	 */
 +	async streamEvents(onEvent: (event: IOpenCodeGlobalEvent) => void, signal: AbortSignal): Promise<void> {
-+		const response = await fetch(this._url('/global/event'), { headers: { ...this._headers(), Accept: 'text/event-stream' }, signal });
-+		if (!response.ok || !response.body) {
-+			throw new Error(`GET /global/event failed (${response.status})`);
++		const path = this.isV2 ? '/api/event' : '/global/event';
++		const response = await this._fetch(this._url(path), { headers: { ...this._headers(), Accept: 'text/event-stream' }, signal }, `GET ${path}`);
++		if (!response.ok || !response.body || !(response.headers.get('content-type') ?? '').includes('text/event-stream')) {
++			throw new Error(`GET ${path} failed (${response.status}): not an event stream`);
 +		}
 +		const reader = response.body.getReader();
 +		const decoder = new TextDecoder();
@@ -1015,10 +1374,10 @@ index 00000000..7d5fc19b
 +}
 diff --git a/src/vs/platform/agentHost/node/opencode/opencodeServer.ts b/src/vs/platform/agentHost/node/opencode/opencodeServer.ts
 new file mode 100644
-index 00000000..5249e12a
+index 00000000..6bd48093
 --- /dev/null
 +++ b/src/vs/platform/agentHost/node/opencode/opencodeServer.ts
-@@ -0,0 +1,132 @@
+@@ -0,0 +1,134 @@
 +/*---------------------------------------------------------------------------------------------
 + *  Copyright (c) Microsoft Corporation. All rights reserved.
 + *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -1115,14 +1474,16 @@ index 00000000..5249e12a
 +
 +		return new Promise<IOpenCodeConnection>((resolve, reject) => {
 +			let output = '';
++			let ready = false;
 +			const timer = setTimeout(() => {
 +				child.kill();
 +				reject(new Error('OpenCode did not start in time.'));
 +			}, START_TIMEOUT_MS);
 +			const onData = (chunk: Buffer) => {
 +				output = (output + chunk.toString('utf8')).slice(-4000);
-+				const match = LISTENING.exec(output);
++				const match = ready ? null : LISTENING.exec(output);
 +				if (match) {
++					ready = true;
 +					clearTimeout(timer);
 +					this._logService.info('[OpenCode] server ready');
 +					resolve({ url: match[1], authorization: `Basic ${Buffer.from(`opencode:${password}`).toString('base64')}` });
@@ -1151,12 +1512,145 @@ index 00000000..5249e12a
 +		super.dispose();
 +	}
 +}
+diff --git a/src/vs/platform/agentHost/node/opencode/opencodeV2.ts b/src/vs/platform/agentHost/node/opencode/opencodeV2.ts
+new file mode 100644
+index 00000000..ae5021a9
+--- /dev/null
++++ b/src/vs/platform/agentHost/node/opencode/opencodeV2.ts
+@@ -0,0 +1,127 @@
++/*---------------------------------------------------------------------------------------------
++ *  Copyright (c) Microsoft Corporation. All rights reserved.
++ *  Licensed under the MIT License. See License.txt in the project root for license information.
++ *--------------------------------------------------------------------------------------------*/
++
++import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type Turn } from '../../common/state/sessionState.js';
++import type { IAgentModelInfo } from '../../common/agent.js';
++import type { OcJson } from './opencodeHttp.js';
++
++/**
++ * OpenCode 2.x speaks a different HTTP API from 1.x (`/api/...` instead of `/session`,
++ * `/config/providers` and `/global/event`), with its own event vocabulary. These are the
++ * pure mappings from that API's data onto the Agent Host's. The wire behaviour was recorded
++ * against a real 2.0.22 server; see `docs/agents-window/SPEC.md`.
++ */
++
++/** Text of a tool result's content blocks. */
++export function textOfContent(content: unknown): string {
++	return Array.isArray(content)
++		? content.filter((block): block is { type: string; text: string } => !!block && typeof block === 'object' && (block as OcJson)['type'] === 'text' && typeof (block as OcJson)['text'] === 'string').map(block => block.text).join('\n')
++		: '';
++}
++
++/** The models OpenCode can use, as the picker lists them. Disabled ones are left out. */
++export function mapModelsV2(provider: string, models: readonly OcJson[]): IAgentModelInfo[] {
++	const result: IAgentModelInfo[] = [];
++	for (const model of models) {
++		if (model['enabled'] === false || typeof model['modelID'] !== 'string' || typeof model['providerID'] !== 'string') {
++			continue;
++		}
++		result.push({
++			provider,
++			id: `${model['providerID']}/${model['modelID']}`,
++			name: `${model['name'] ?? model['modelID']} (${model['providerID']})`,
++			maxContextWindow: model['limit']?.['context'] || undefined,
++			maxOutputTokens: model['limit']?.['output'] || undefined,
++			supportsVision: !!model['capabilities']?.['input']?.includes?.('image'),
++		});
++	}
++	return result;
++}
++
++const iso = (time: unknown) => new Date(typeof time === 'number' ? time : Date.now()).toISOString();
++
++function toolPart(item: OcJson, content: OcJson): ResponsePart {
++	const state = (content['state'] ?? {}) as OcJson;
++	const name = String(content['name'] ?? 'tool');
++	const display = prettify(name);
++	const failed = state['status'] === 'error';
++	const done = state['status'] === 'completed' || failed;
++	const output = textOfContent(state['content']);
++	const base = {
++		toolCallId: String(content['id'] ?? `${item['id']}-${name}`),
++		toolName: name,
++		displayName: display,
++		invocationMessage: display,
++		toolInput: state['input'] === undefined ? undefined : JSON.stringify(state['input']),
++		confirmed: ToolCallConfirmationReason.NotNeeded,
++	};
++	return {
++		kind: ResponsePartKind.ToolCall,
++		toolCall: {
++			status: ToolCallStatus.Completed,
++			...base,
++			// A call with no recorded result was cut off (the app closed while it ran): show it as failed.
++			success: done && !failed,
++			pastTenseMessage: display,
++			content: output ? [{ type: ToolResultContentType.Text, text: output.slice(0, 20_000) }] : undefined,
++			error: !done || failed ? { message: String(state['error']?.['message'] ?? (done ? 'The tool failed.' : 'The app was closed before the tool finished.')) } : undefined,
++		},
++	};
++}
++
++/**
++ * Rebuild the display history from OpenCode 2.x's messages: one turn per user message, with
++ * the assistant's text, reasoning and tool calls in order. Items may arrive in either order.
++ */
++export function toTurnsV2(items: readonly OcJson[]): Turn[] {
++	const ordered = [...items].sort((a, b) => (a['time']?.['created'] ?? 0) - (b['time']?.['created'] ?? 0));
++	const turns: Turn[] = [];
++	let current: Turn | undefined;
++	for (const item of ordered) {
++		if (item['type'] === 'user') {
++			current = { id: String(item['id']), startedAt: iso(item['time']?.['created']), message: { text: String(item['text'] ?? ''), origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined, state: TurnState.Complete };
++			turns.push(current);
++			continue;
++		}
++		if (!current || item['type'] !== 'assistant') {
++			continue;
++		}
++		((item['content'] ?? []) as OcJson[]).forEach((content, index) => {
++			const id = `${item['id']}:${index}`;
++			if (content['type'] === 'text' && content['text']) {
++				current!.responseParts.push({ kind: ResponsePartKind.Markdown, id, content: String(content['text']) });
++			} else if (content['type'] === 'reasoning' && content['text']) {
++				current!.responseParts.push({ kind: ResponsePartKind.Reasoning, id, content: String(content['text']) });
++			} else if (content['type'] === 'tool') {
++				current!.responseParts.push(toolPart(item, content));
++			}
++		});
++		const tokens = item['tokens'] as OcJson | undefined;
++		if (tokens) {
++			const previous = current.usage;
++			current.usage = {
++				inputTokens: (previous?.inputTokens ?? 0) + (tokens['input'] ?? 0),
++				outputTokens: (previous?.outputTokens ?? 0) + (tokens['output'] ?? 0),
++				cacheReadTokens: (previous?.cacheReadTokens ?? 0) + (tokens['cache']?.['read'] ?? 0),
++				model: item['model'] ? `${item['model']['providerID']}/${item['model']['id']}` : previous?.model,
++			};
++		}
++		const created = item['time']?.['created'];
++		const completed = item['time']?.['completed'];
++		if (typeof created === 'number' && typeof completed === 'number') {
++			current.duration = (current.duration ?? 0) + (completed - created);
++		}
++		if (item['error'] && item['finish'] === 'error' && !(item['error']['type'] === 'aborted')) {
++			current.state = TurnState.Error;
++			current.error = { errorType: `opencode.${item['error']['type'] ?? 'error'}`, message: String(item['error']['message'] ?? 'OpenCode reported an error.') };
++		}
++	}
++	return turns;
++}
++
++export function prettify(name: string): string {
++	const spaced = name.replace(/[_-]+/g, ' ').trim();
++	return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : 'Tool';
++}
 diff --git a/src/vs/platform/agentHost/node/pi/piAgent.ts b/src/vs/platform/agentHost/node/pi/piAgent.ts
 new file mode 100644
-index 00000000..e173bf7b
+index 00000000..77c88eb3
 --- /dev/null
 +++ b/src/vs/platform/agentHost/node/pi/piAgent.ts
-@@ -0,0 +1,658 @@
+@@ -0,0 +1,666 @@
 +/*---------------------------------------------------------------------------------------------
 + *  Copyright (c) Microsoft Corporation. All rights reserved.
 + *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -1174,7 +1668,7 @@ index 00000000..e173bf7b
 +import { ActionType } from '../../common/state/sessionActions.js';
 +import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type Customization, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 +import { resolveAgentChatContext, type AuthenticateParams, type IActiveClient, IAgent, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatMetadata, IAgentChats, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentModelInfo, IAgentResolveChatConfigParams, AgentSignal } from '../../common/agent.js';
-+import { buildPiModels, loadPiDeps, type IPiDeps, type PiModel, type PiModels } from './piProviderRuntime.js';
++import { buildPiModels, loadPiDeps, routingHeaders, type IPiDeps, type PiModel, type PiModels } from './piProviderRuntime.js';
 +import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 +import { PI_CONVERSATION_VERSION, PI_MAX_PERSISTED_BYTES, parseChatMeta, parseConversation, titleFromPrompt, toTurns, type IPiChatMeta, type IPiConversation, type PiMessage } from './piConversation.js';
 +import { homedir } from 'os';
@@ -1485,7 +1979,7 @@ index 00000000..e173bf7b
 +				// A restored chat starts from its saved messages, so the model remembers the conversation.
 +				initialState: { systemPrompt: buildSystemPrompt(cwd), model, messages: entry.restoredMessages ? [...entry.restoredMessages] as never : [] },
 +				// Always the live collection, so provider edits apply to existing chats.
-+				streamFn: (...args) => this._piModels!.streamSimple(...args),
++				streamFn: this._streamFor(entry),
 +			});
 +			entry.restoredMessages = undefined;
 +			agent.state.model = model;
@@ -1636,6 +2130,14 @@ index 00000000..e173bf7b
 +		return { block: true, reason: 'The user did not approve this tool call.' };
 +	};
 +
++	/** The stream function for a chat's agents: the live model collection, plus headers the target service requires. */
++	private _streamFor(entry: IPiChat): (...args: Parameters<PiModels['streamSimple']>) => ReturnType<PiModels['streamSimple']> {
++		return (model, context, options) => {
++			const headers = routingHeaders(model.baseUrl, entry.chatId);
++			return this._piModels!.streamSimple(model, context, headers ? { ...options, headers: { ...options?.headers, ...headers } } : options);
++		};
++	}
++
 +	private readonly _subagentLimiter = new SubagentLimiter();
 +	private _subagentRuns = 0;
 +
@@ -1662,7 +2164,7 @@ index 00000000..e173bf7b
 +			},
 +			createAgent: options => new deps.core.Agent({
 +				initialState: { systemPrompt: options.systemPrompt, model: options.model as never, messages: [], tools: options.tools },
-+				streamFn: (...args) => this._piModels!.streamSimple(...args),
++				streamFn: this._streamFor(entry),
 +			}) as unknown as SubagentAgent,
 +			createTools: () => createPiTools(cwd),
 +			gate: (label, idPrefix) => (context: Parameters<PiBeforeToolCall>[0], signal?: AbortSignal) => this._beforeToolCall(entry, context, signal, label, idPrefix),
@@ -2043,10 +2545,10 @@ index 00000000..32bed2b0
 +}
 diff --git a/src/vs/platform/agentHost/node/pi/piProviderRuntime.ts b/src/vs/platform/agentHost/node/pi/piProviderRuntime.ts
 new file mode 100644
-index 00000000..e47c85a4
+index 00000000..5c0e4aa2
 --- /dev/null
 +++ b/src/vs/platform/agentHost/node/pi/piProviderRuntime.ts
-@@ -0,0 +1,203 @@
+@@ -0,0 +1,221 @@
 +/*---------------------------------------------------------------------------------------------
 + *  Copyright (c) Microsoft Corporation. All rights reserved.
 + *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -2134,6 +2636,24 @@ index 00000000..e47c85a4
 +	async delete(providerId: string): Promise<void> {
 +		this._map.delete(providerId);
 +	}
++}
++
++/**
++ * Request headers some services require from a coding client. OpenCode's hosted models (Zen and
++ * Go) route and cache by conversation, so they ask for a stable session id and an identifying
++ * user agent, and refuse requests without them.
++ */
++export function routingHeaders(baseUrl: string | undefined, sessionId: string | undefined): Record<string, string> | undefined {
++	let host = '';
++	try {
++		host = new URL(baseUrl ?? '').hostname;
++	} catch {
++		return undefined;
++	}
++	if (sessionId && (host === 'opencode.ai' || host.endsWith('.opencode.ai'))) {
++		return { 'x-opencode-session': sessionId, 'User-Agent': 'mollycodel/1.0' };
++	}
++	return undefined;
 +}
 +
 +/** Fallback limits for a model id Pi's catalog does not know (a generic text-only model). */

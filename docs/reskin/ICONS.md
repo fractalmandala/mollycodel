@@ -47,3 +47,23 @@ Wiring is in `src/vs/workbench/browser/media/mollycodel.css` (patch `60-ui-clean
 - The picture is drawn at 16px. A 24px source scaled down will look soft; export at 16.
 - These apply to the title bar buttons only. The same pictures inside menus keep the stock
   icons until we reskin those too (see `PLAN.md`).
+
+
+## More icons (second batch)
+
+Same format as above (16x16 canvas, one colour, plain shapes). Files live in
+`src/stable/src/vs/workbench/browser/media/ui-icons/` and are wired in `mollycodel.css`.
+They are scaled to the icon's size, so the 24px activity bar icons are your 16px drawing enlarged
+by half: keep strokes chunky enough to survive that.
+
+| File | Where it shows |
+| --- | --- |
+| `explorer.svg`, `search.svg`, `source-control.svg`, `run-debug.svg`, `extensions.svg` | Activity bar (left strip) |
+| `user.svg` | Accounts button (activity bar or title bar, and the Agents Window top-right account button) |
+| `settings.svg` | Settings (manage) button, same places |
+| `new-remote-window.svg` | Status bar, bottom left (open a remote window) |
+| `notifications.svg` | Status bar, bottom right, the plain bell |
+
+**Not covered yet:** the status bar bell has two more states that keep the stock icon until they
+have their own files: `notifications-unread.svg` (the bell with a dot, shown when something new
+arrived) and `notifications-muted.svg` (the bell with a slash, do not disturb).

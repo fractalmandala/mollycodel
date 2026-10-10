@@ -405,3 +405,29 @@ The Pi agent gets an `Agent` tool that hands a self-contained task to a fresh ag
 - **Not in this version:** background runs with later retrieval, steering a running agent, nested agents, worktree isolation, scripted workflows, scheduling, a live fleet view, sub-agents as their own sessions in the Agents Window list.
 
 Verified by `dev/test-pi-commandcode.mjs` (14 checks) and `dev/test-pi-subagents.mjs` (18 checks) against fake local model servers; neither used a real key or the network. Not yet seen in the built app.
+
+
+## Phase 6: OpenCode 2.x
+
+**What happened.** OpenCode updates itself. On 2026-10-02 at 22:19 the program on this machine became **v2.0.22**, whose HTTP server replaced the 1.x API: `/session`, `/config/providers` and `/global/event` now answer with OpenCode's web page, so the agent reported "OpenCode unavailable: Unexpected token '<'". OpenChamber 2.1.0 (released a day earlier) already used the new API; OpenCode's own desktop app carries a bundled server and was unaffected.
+
+**What the agent does now.** On connecting it asks `/api/info`; 2.x answers with JSON (`version`), anything else is treated as 1.x and goes through the original code unchanged. For 2.x:
+
+| Need | Call |
+| --- | --- |
+| Models | `GET /api/model?location[directory]=...`; the server fills this in just after starting, so the agent waits for a non-empty list |
+| Start a chat | `POST /api/session` with `location.directory` and `model {providerID, id}` |
+| Send | `POST /api/session/{id}/prompt {text}`; it returns once the message is queued |
+| Stop | `POST /api/session/{id}/interrupt` |
+| Switch model or agent mid-chat | `POST /api/session/{id}/model` and `/agent`, sent once per change |
+| Approvals | `permission.asked` event; answer with `POST .../permission/{requestID}/reply {decision: once | reject}` |
+| History | `GET /api/session/{id}/message` in pages of up to 200, following `cursor.next` (a cursor cannot be combined with `order`) |
+| Live progress | `GET /api/event` (server-sent events); each event is `{id, type, data}` |
+
+Events used: `session.text.*` / `session.reasoning.*` (started, delta, ended), `session.tool.input.started`, `called`, `progress`, `success`, `failed`, `permission.asked`, `session.step.started` / `ended` (model and usage), `session.renamed`, and `session.execution.succeeded` / `interrupted` / `failed`. If the stream drops and the end event is missed, a quiet turn is checked against the server after about 12 seconds. The event shapes were recorded from a real 2.0.22 server (the spec lists only `/api/event` as an opaque string); the recording is in `test-run/oc-v2-recording/` and the server's OpenAPI document in `test-run/opencode-v2-openapi.json`.
+
+**Also fixed on the way.** A message used to be sent over a request that stays open until the run finishes; Node's `fetch` gives up on that after five minutes with "fetch failed". It now uses Node's HTTP client, and network errors say why (`ECONNREFUSED`, ...). The server wrapper no longer logs "server ready" on every later line of output.
+
+**Not done.** Questions the model asks the user (2.x calls these forms: `/api/form`) are not answered yet, so a run that waits on one will wait. The `build` / `plan` agent choice is not in the interface. The 1.x path is unchanged but was not run against a real 1.x server, because none is installed.
+
+**Verified by** `dev/test-opencode-v2.mjs` (17 checks, against the real 2.0.22 server on a free model: streaming, a tool call, usage, history, re-attaching after a restart and remembering the conversation) and `dev/test-opencode-v2-events.mjs` (20 checks, scripted fake server: approvals, declining, a failed run, stopping, a missed end event, 1.x detection).

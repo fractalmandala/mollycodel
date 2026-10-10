@@ -511,10 +511,10 @@ index 00000000..2260a309
 +}
 diff --git a/src/vs/workbench/contrib/piProviders/browser/piProvidersService.ts b/src/vs/workbench/contrib/piProviders/browser/piProvidersService.ts
 new file mode 100644
-index 00000000..89e61c55
+index 00000000..12284992
 --- /dev/null
 +++ b/src/vs/workbench/contrib/piProviders/browser/piProvidersService.ts
-@@ -0,0 +1,218 @@
+@@ -0,0 +1,219 @@
 +/*---------------------------------------------------------------------------------------------
 + *  Copyright (c) Microsoft Corporation. All rights reserved.
 + *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -630,6 +630,7 @@ index 00000000..89e61c55
 +	}
 +
 +	async saveProvider(config: IPiProviderConfig, apiKey: string | null | undefined): Promise<void> {
++		apiKey = typeof apiKey === 'string' ? apiKey.trim() : apiKey; // a pasted key often carries a trailing space or newline, which the service rejects
 +		if (typeof apiKey === 'string' && apiKey) {
 +			await this._secretStorageService.set(secretKey(config.id), apiKey);
 +		} else if (apiKey === null) {

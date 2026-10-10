@@ -1,9 +1,93 @@
+diff --git a/src/vs/sessions/browser/accountTitleBarState.ts b/src/vs/sessions/browser/accountTitleBarState.ts
+index e16c6aba..80ab6b04 100644
+--- a/src/vs/sessions/browser/accountTitleBarState.ts
++++ b/src/vs/sessions/browser/accountTitleBarState.ts
+@@ -5,2 +5,3 @@
+ 
++import { MOLLYCODEL_NO_COPILOT } from '../../workbench/services/chat/common/mollycodelNoCopilot.js'; // mollycodel
+ import { Codicon } from '../../base/common/codicons.js';
+@@ -141,2 +142,5 @@ export function getAccountTitleBarState(context: IAccountTitleBarStateContext):
+ 
++	if (MOLLYCODEL_NO_COPILOT) { // mollycodel: there is no account to sign in to; the button opens providers and settings
++		return { source: 'account', kind: 'default', icon: Codicon.account, label: localize('mollycodel.accountLabel', "AI providers"), ariaLabel: localize('mollycodel.accountAria', "AI providers and settings"), revealLabelOnHover: true }; // mollycodel
++	} // mollycodel
+ 	const copilotState = getCopilotPresentation(context.entitlement, context.sentiment, context.quotas, context.allowSignedOutWhenUsable);
+diff --git a/src/vs/sessions/browser/sessionsAuthGate.ts b/src/vs/sessions/browser/sessionsAuthGate.ts
+index ca553b8d..9028886c 100644
+--- a/src/vs/sessions/browser/sessionsAuthGate.ts
++++ b/src/vs/sessions/browser/sessionsAuthGate.ts
+@@ -5,2 +5,3 @@
+ 
++import { MOLLYCODEL_NO_COPILOT } from '../../workbench/services/chat/common/mollycodelNoCopilot.js'; // mollycodel
+ import { Event } from '../../base/common/event.js';
+@@ -72,2 +73,5 @@ export function resolveSignedOutWindowGate(allowSignedOutWhenUsable: boolean, au
+ export function shouldShowGitHubWorkspaceGroupSignIn(signedIn: boolean, allowSignedOutWhenUsable: boolean): boolean {
++	if (MOLLYCODEL_NO_COPILOT) { // mollycodel: no GitHub account to sign in to
++		return false; // mollycodel
++	} // mollycodel
+ 	return !signedIn && allowSignedOutWhenUsable;
+diff --git a/src/vs/sessions/contrib/accountMenu/browser/account.contribution.ts b/src/vs/sessions/contrib/accountMenu/browser/account.contribution.ts
+index e176a324..9e17f281 100644
+--- a/src/vs/sessions/contrib/accountMenu/browser/account.contribution.ts
++++ b/src/vs/sessions/contrib/accountMenu/browser/account.contribution.ts
+@@ -101,3 +101,3 @@ registerAction2(class extends Action2 {
+ 				id: AccountMenu,
+-				when: ContextKeyExpr.notEquals('defaultAccountStatus', 'available'),
++				when: ContextKeyExpr.false(), // mollycodel: there is no Copilot account to sign in to; see mollycodelAccount.contribution.ts
+ 				group: '1_account',
+diff --git a/src/vs/sessions/contrib/accountMenu/browser/mollycodelAccount.contribution.ts b/src/vs/sessions/contrib/accountMenu/browser/mollycodelAccount.contribution.ts
+new file mode 100644
+index 00000000..fd702db8
+--- /dev/null
++++ b/src/vs/sessions/contrib/accountMenu/browser/mollycodelAccount.contribution.ts
+@@ -0,0 +1,33 @@
++/*---------------------------------------------------------------------------------------------
++ *  mollycodel: the Agents Window account menu leads to AI providers, not a Copilot sign-in.
++ *  Licensed under the MIT License. See License.txt in the project root for license information.
++ *--------------------------------------------------------------------------------------------*/
++
++import { Codicon } from '../../../../base/common/codicons.js';
++import { localize2 } from '../../../../nls.js';
++import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
++import { ICommandService } from '../../../../platform/commands/common/commands.js';
++import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
++import { Menus } from '../../../browser/menus.js';
++
++/** Opens the page where AI providers and their keys are managed. */
++const MANAGE_PROVIDERS_COMMAND_ID = 'workbench.action.pi.manageProviders';
++
++registerAction2(class extends Action2 {
++	constructor() {
++		super({
++			id: 'mollycodel.sessions.manageProviders',
++			title: localize2('mollycodel.manageProviders', "Manage AI providers"),
++			icon: Codicon.settingsGear,
++			menu: {
++				id: Menus.AccountMenu,
++				group: '1_account',
++				order: 1,
++			}
++		});
++	}
++
++	async run(accessor: ServicesAccessor): Promise<void> {
++		await accessor.get(ICommandService).executeCommand(MANAGE_PROVIDERS_COMMAND_ID);
++	}
++});
+diff --git a/src/vs/sessions/sessions.common.main.ts b/src/vs/sessions/sessions.common.main.ts
+index 78578d24..a878f6c2 100644
+--- a/src/vs/sessions/sessions.common.main.ts
++++ b/src/vs/sessions/sessions.common.main.ts
+@@ -465,2 +465,3 @@ import './browser/layoutActions.js';
+ import './contrib/accountMenu/browser/account.contribution.js';
++import './contrib/accountMenu/browser/mollycodelAccount.contribution.js'; // mollycodel
+ import './contrib/aiCustomizationTreeView/browser/aiCustomizationTreeView.contribution.js';
 diff --git a/src/vs/workbench/browser/media/mollycodel.css b/src/vs/workbench/browser/media/mollycodel.css
 new file mode 100644
-index 00000000..3691ccf0
+index 00000000..5fd79721
 --- /dev/null
 +++ b/src/vs/workbench/browser/media/mollycodel.css
-@@ -0,0 +1,59 @@
+@@ -0,0 +1,98 @@
 +/*---------------------------------------------------------------------------------------------
 + *  mollycodel: look-and-feel overrides, kept in one file so upstream merges stay trivial.
 + *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -63,6 +147,45 @@ index 00000000..3691ccf0
 +.monaco-workbench .part.titlebar .codicon-configure-layout-icon::before {
 +	-webkit-mask-image: url('./layout-icons/layout.svg');
 +}
++
++/*
++ * More icons, same method. Files live in ./ui-icons; each is drawn on a 16x16 canvas and
++ * scaled to the icon's font size (24px in the activity bar, 16px elsewhere), taking the
++ * colour of the surrounding text.
++ */
++
++.monaco-workbench .activitybar :is(
++	.codicon-explorer-view-icon, .codicon-search-view-icon, .codicon-source-control-view-icon,
++	.codicon-run-view-icon, .codicon-extensions-view-icon
++)::before,
++.monaco-workbench :is(.activitybar, .part.titlebar) :is(.codicon-accounts-view-bar-icon, .codicon-settings-view-bar-icon)::before,
++.agent-sessions-workbench .sessions-account-titlebar-widget-icon.codicon-account::before,
++.monaco-workbench .part.statusbar :is(.codicon-remote, .codicon-bell)::before {
++	content: '';
++	display: block;
++	width: 1em;
++	height: 1em;
++	background-color: currentColor;
++	-webkit-mask-repeat: no-repeat;
++	-webkit-mask-position: center;
++	-webkit-mask-size: 100% 100%;
++}
++
++/* Activity bar */
++.monaco-workbench .activitybar .codicon-explorer-view-icon::before { -webkit-mask-image: url('./ui-icons/explorer.svg'); }
++.monaco-workbench .activitybar .codicon-search-view-icon::before { -webkit-mask-image: url('./ui-icons/search.svg'); }
++.monaco-workbench .activitybar .codicon-source-control-view-icon::before { -webkit-mask-image: url('./ui-icons/source-control.svg'); }
++.monaco-workbench .activitybar .codicon-run-view-icon::before { -webkit-mask-image: url('./ui-icons/run-debug.svg'); }
++.monaco-workbench .activitybar .codicon-extensions-view-icon::before { -webkit-mask-image: url('./ui-icons/extensions.svg'); }
++
++/* Accounts and Settings (activity bar, or title bar when the activity bar is moved there) and the Agents Window account button */
++.monaco-workbench :is(.activitybar, .part.titlebar) .codicon-accounts-view-bar-icon::before,
++.agent-sessions-workbench .sessions-account-titlebar-widget-icon.codicon-account::before { -webkit-mask-image: url('./ui-icons/user.svg'); }
++.monaco-workbench :is(.activitybar, .part.titlebar) .codicon-settings-view-bar-icon::before { -webkit-mask-image: url('./ui-icons/settings.svg'); }
++
++/* Status bar: remote window and notifications (the "unread" and "muted" bells keep the stock icons until they have their own files) */
++.monaco-workbench .part.statusbar .codicon-remote::before { -webkit-mask-image: url('./ui-icons/new-remote-window.svg'); }
++.monaco-workbench .part.statusbar .codicon-bell::before { -webkit-mask-image: url('./ui-icons/notifications.svg'); }
 diff --git a/src/vs/workbench/browser/part.ts b/src/vs/workbench/browser/part.ts
 index c8b312db..ae13d700 100644
 --- a/src/vs/workbench/browser/part.ts
@@ -71,6 +194,18 @@ index c8b312db..ae13d700 100644
  import './media/floatingPanels.css';
 +import './media/mollycodel.css';
  import { Component } from '../common/component.js';
+diff --git a/src/vs/workbench/contrib/chat/browser/chatManagement/chatModelsWidget.ts b/src/vs/workbench/contrib/chat/browser/chatManagement/chatModelsWidget.ts
+index b4e6cd77..8641d6ec 100644
+--- a/src/vs/workbench/contrib/chat/browser/chatManagement/chatModelsWidget.ts
++++ b/src/vs/workbench/contrib/chat/browser/chatManagement/chatModelsWidget.ts
+@@ -1291,2 +1291,3 @@ export class ChatModelsWidget extends Disposable {
+ 		this._register(this.addButton.onDidClick((e) => {
++			if (this.dropdownActions.length === 1 && this.dropdownActions[0].id === 'mollycodel.manageProviders') { void this.dropdownActions[0].run(); return; } // mollycodel
+ 			if (this.dropdownActions.length > 0) {
+@@ -1666,2 +1667,3 @@ export class ChatModelsWidget extends Disposable {
+ 
++		this.dropdownActions = [toAction({ id: 'mollycodel.manageProviders', label: localize('mollycodel.addProvider', "Add an AI provider..."), run: () => this.commandService.executeCommand('workbench.action.pi.manageProviders') })]; // mollycodel: models come from our providers page, not Copilot
+ 		this.addButton.enabled = this.dropdownActions.length > 0;
 diff --git a/src/vs/workbench/contrib/chat/browser/chatSetup/chatSetupContributions.ts b/src/vs/workbench/contrib/chat/browser/chatSetup/chatSetupContributions.ts
 index 8b75ea3c..d393668e 100644
 --- a/src/vs/workbench/contrib/chat/browser/chatSetup/chatSetupContributions.ts
@@ -79,3 +214,69 @@ index 8b75ea3c..d393668e 100644
  							ChatContextKeys.Setup.disabledInWorkspace.negate(),
 +							ContextKeyExpr.false(), // mollycodel: no Copilot sign-in button in the title bar
  							ContextKeyExpr.equals(`config.${ChatConfiguration.TitleBarSignInEnabled}`, true),
+diff --git a/src/vs/workbench/contrib/chat/browser/chatStatus/chatStatusEntry.ts b/src/vs/workbench/contrib/chat/browser/chatStatus/chatStatusEntry.ts
+index e8a7cefa..eb7c0d34 100644
+--- a/src/vs/workbench/contrib/chat/browser/chatStatus/chatStatusEntry.ts
++++ b/src/vs/workbench/contrib/chat/browser/chatStatus/chatStatusEntry.ts
+@@ -5,2 +5,3 @@
+ 
++import { MOLLYCODEL_NO_COPILOT } from '../../../../services/chat/common/mollycodelNoCopilot.js'; // mollycodel
+ import './media/chatStatus.css';
+@@ -168,2 +169,5 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
+ 	private update(): void {
++		if (MOLLYCODEL_NO_COPILOT) { // mollycodel: no Copilot status item
++			return; // mollycodel
++		} // mollycodel
+ 		const sentiment = this.chatEntitlementService.sentiment;
+diff --git a/src/vs/workbench/contrib/chat/common/constants.ts b/src/vs/workbench/contrib/chat/common/constants.ts
+index 74098086..4e546d78 100644
+--- a/src/vs/workbench/contrib/chat/common/constants.ts
++++ b/src/vs/workbench/contrib/chat/common/constants.ts
+@@ -323,2 +323,5 @@ export function getComputedDefaultSessionType(
+ 
++	if (agentHostEnabled) { // mollycodel: chats start with Pi; the Local agent needs a Copilot account this app does not have
++		return 'agent-host-pi'; // mollycodel
++	} // mollycodel
+ 	if (agentHostEnabled && isCopilotHarnessDefault(configurationService, managedSandboxEnforced)) {
+@@ -352,2 +355,5 @@ export function isNewChatSessionTypeUsable(
+ ): boolean {
++	if (sessionType === localChatSessionType && agentHostEnabled) { // mollycodel: a remembered "Local" must not win over Pi
++		return false; // mollycodel
++	} // mollycodel
+ 	if (sessionType === localChatSessionType) {
+diff --git a/src/vs/workbench/services/chat/common/chatEntitlementService.ts b/src/vs/workbench/services/chat/common/chatEntitlementService.ts
+index a00f3a9f..b9910ac3 100644
+--- a/src/vs/workbench/services/chat/common/chatEntitlementService.ts
++++ b/src/vs/workbench/services/chat/common/chatEntitlementService.ts
+@@ -5,2 +5,3 @@
+ 
++import { MOLLYCODEL_NO_COPILOT } from './mollycodelNoCopilot.js'; // mollycodel
+ import product from '../../../../platform/product/common/product.js';
+@@ -454,2 +455,6 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
+ 
++		if (MOLLYCODEL_NO_COPILOT) { // mollycodel: no Copilot entitlement; setup counts as done so no welcome or sign-in prompts appear
++			ChatEntitlementContextKeys.Setup.completed.bindTo(this.contextKeyService).set(true); // mollycodel
++			return; // mollycodel
++		} // mollycodel
+ 		if (!productService.defaultChatAgent) {
+diff --git a/src/vs/workbench/services/chat/common/mollycodelNoCopilot.ts b/src/vs/workbench/services/chat/common/mollycodelNoCopilot.ts
+new file mode 100644
+index 00000000..468a0b82
+--- /dev/null
++++ b/src/vs/workbench/services/chat/common/mollycodelNoCopilot.ts
+@@ -0,0 +1,15 @@
++/*---------------------------------------------------------------------------------------------
++ *  mollycodel: one switch for "this app has no GitHub Copilot".
++ *  Licensed under the MIT License. See License.txt in the project root for license information.
++ *--------------------------------------------------------------------------------------------*/
++
++/**
++ * mollycodel ships without GitHub Copilot: its agents (Pi, OpenCode) use the user's own
++ * providers, so there is no account to sign in to, no entitlement to resolve and no quota.
++ *
++ * While this is `true`, the chat entitlement service never starts (no calls to GitHub),
++ * chat setup counts as finished, and the Copilot sign-in and status surfaces stay hidden.
++ * The product configuration's `defaultChatAgent` block is deliberately left in place
++ * because the extension gallery reads it without checking that it exists.
++ */
++export const MOLLYCODEL_NO_COPILOT = true;
